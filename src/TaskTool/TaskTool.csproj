@@ -1,0 +1,42 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>TaskTool</AssemblyName>
+    <RootNamespace>TaskTool</RootNamespace>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+    <!-- Tema Fluent do WPF (ThemeMode) ainda é marcado como experimental -->
+    <NoWarn>$(NoWarn);WPF0001</NoWarn>
+
+    <!-- Versão e metadados (aparecem em Propriedades > Detalhes do .exe).
+         Para gerar outra versão sem editar aqui: build.ps1 -Version 1.2.0 -->
+    <Version>1.0.0</Version>
+    <Product>TaskTool</Product>
+    <AssemblyTitle>TaskTool - fila de tarefas ativas</AssemblyTitle>
+    <Description>Fila de tarefas ativas na bandeja do Windows.</Description>
+    <Copyright>Copyright © 2026</Copyright>
+  </PropertyGroup>
+
+  <!-- Configurações usadas só no dotnet publish (gerar o executável). -->
+  <PropertyGroup Condition="'$(_IsPublishing)' == 'true'">
+    <PublishSingleFile>true</PublishSingleFile>
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <DebugType>none</DebugType>
+    <SatelliteResourceLanguages>pt-BR;en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\app.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="H.NotifyIcon.Wpf" Version="2.4.1" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.15" />
+  </ItemGroup>
+
+</Project>
