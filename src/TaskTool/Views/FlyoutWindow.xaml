@@ -173,17 +173,48 @@
                     <TextBlock Text="Nenhuma tarefa ativa" Margin="0,10,0,0" Foreground="{StaticResource FgMuted}" />
                 </StackPanel>
 
-                <!-- Rodapé -->
-                <Border Grid.Row="4" Background="{StaticResource FlyoutFooterBg}" CornerRadius="0,0,7,7"
-                        BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="20,6,8,6">
-                    <Grid>
-                        <TextBlock x:Name="Resumo" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource FgMuted}" />
-                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                            <Button Style="{StaticResource IconButton}" Content="&#xE81C;" ToolTip="Concluídas" Click="Concluidas_Click" />
-                            <Button x:Name="OpcoesBtn" Style="{StaticResource IconButton}" Content="&#xE713;" ToolTip="Opções" Click="Opcoes_Click" />
-                        </StackPanel>
-                    </Grid>
-                </Border>
+                <StackPanel Grid.Row="4">
+                    <!-- Faixa de atualização (DataContext = App.Updater, definido no code-behind) -->
+                    <Border x:Name="FaixaAtualizacao" Background="#4D3F1A" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0"
+                            Padding="16,6,8,6" Visibility="{Binding MostrarBanner, Converter={StaticResource BoolVis}}">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <Grid Width="18" Height="18" VerticalAlignment="Center" Margin="0,0,10,0">
+                                <Ellipse Fill="#FCE100" />
+                                <TextBlock Text="!" FontWeight="Bold" FontSize="12" Foreground="#2B2200"
+                                           HorizontalAlignment="Center" VerticalAlignment="Center" Margin="0,-1,0,0" />
+                            </Grid>
+                            <TextBlock Grid.Column="1" Text="{Binding TextoBanner}" VerticalAlignment="Center" FontSize="13"
+                                       TextWrapping="Wrap" />
+                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button Style="{StaticResource IconButton}" Content="&#xE8A5;" FontSize="13" ToolTip="O que mudou (página da versão)"
+                                        Click="NotasVersao_Click" Visibility="{Binding Disponivel, Converter={StaticResource BoolVis}}" />
+                                <Button x:Name="AtualizarBtn" Style="{StaticResource AccentButton}" Content="Atualizar" FontSize="12"
+                                        Padding="10,4" Margin="4,0,0,0" Click="Atualizar_Click"
+                                        Visibility="{Binding Disponivel, Converter={StaticResource BoolVis}}"
+                                        IsEnabled="{Binding Ocupado, Converter={StaticResource Not}}" />
+                                <Button Style="{StaticResource IconButton}" Content="&#xE711;" FontSize="10" ToolTip="Fechar aviso"
+                                        Click="FecharFaixa_Click" Margin="2,0,0,0" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <!-- Rodapé -->
+                    <Border Background="{StaticResource FlyoutFooterBg}" CornerRadius="0,0,7,7"
+                            BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Padding="20,6,8,6">
+                        <Grid>
+                            <TextBlock x:Name="Resumo" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource FgMuted}" />
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Style="{StaticResource IconButton}" Content="&#xE81C;" ToolTip="Concluídas" Click="Concluidas_Click" />
+                                <Button x:Name="OpcoesBtn" Style="{StaticResource IconButton}" Content="&#xE713;" ToolTip="Opções" Click="Opcoes_Click" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

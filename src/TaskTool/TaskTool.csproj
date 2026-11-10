@@ -15,7 +15,7 @@
 
     <!-- Versão e metadados (aparecem em Propriedades > Detalhes do .exe).
          Para gerar outra versão sem editar aqui: build.ps1 -Version 1.2.0 -->
-    <Version>1.0.1</Version>
+    <Version>1.1.0</Version>
     <Product>TaskTool</Product>
     <AssemblyTitle>TaskTool - fila de tarefas ativas</AssemblyTitle>
     <Description>Fila de tarefas ativas na bandeja do Windows.</Description>

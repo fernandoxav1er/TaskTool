@@ -10,6 +10,7 @@
             <local:EnumEqualsConverter x:Key="EnumEq" />
             <local:BoolToVisibilityConverter x:Key="BoolVis" />
             <local:BoolToVisibilityConverter x:Key="BoolVisInv" Invert="True" />
+            <local:NotConverter x:Key="Not" />
 
             <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
 

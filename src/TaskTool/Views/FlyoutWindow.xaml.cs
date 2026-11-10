@@ -32,6 +32,8 @@ public partial class FlyoutWindow : Window
         };
         _fila.LiveFilteringProperties.Add(nameof(Tarefa.Foco));
         Lista.ItemsSource = _fila;
+
+        FaixaAtualizacao.DataContext = App.Updater;
         store.Mudou += (_, _) => AtualizarResumo();
         AtualizarResumo();
     }
@@ -122,6 +124,23 @@ public partial class FlyoutWindow : Window
         menu.Closed += (_, _) => { if (!IsActive) Esconder(); };
         OpcoesBtn.ContextMenu = menu;
         menu.IsOpen = true;
+    }
+
+    // ---------- Atualização ----------
+
+    private async void Atualizar_Click(object sender, RoutedEventArgs e) => await App.Current.AtualizarAgoraAsync();
+
+    private void NotasVersao_Click(object sender, RoutedEventArgs e)
+    {
+        Esconder();
+        App.Updater.AbrirPagina();
+    }
+
+    private void FecharFaixa_Click(object sender, RoutedEventArgs e)
+    {
+        // Esconde só por agora; a próxima verificação mostra de novo se ainda houver versão nova.
+        if (App.Updater.Ocupado) return;
+        App.Updater.Dispensar();
     }
 
     // ---------- Itens ----------

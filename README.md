@@ -19,6 +19,7 @@ aplicativo completo abre.
 | Painel: clicar na tarefa | Abre os detalhes no aplicativo |
 | `Esc` / clicar fora | Fecha o painel |
 | App: `Ctrl+F` | Busca em títulos, descrições e anotações, inclusive das concluídas (ignora acentos) |
+| Faixa "Atualização disponível" no painel | **Atualizar** baixa a versão nova do GitHub, troca o exe e reabre |
 
 No aplicativo: título, status, prazo (`dd/mm`), link, descrição e **anotações** (um log com data/hora
 do que aconteceu na tarefa). A aba **Concluídas** mostra o histórico, onde dá para reabrir uma tarefa.
@@ -49,7 +50,8 @@ Requer o .NET 10 SDK.
 dotnet run --project src/TaskTool
 ```
 
-Argumentos úteis: `--show` abre o painel ao iniciar, `--app` abre a janela principal.
+Argumentos úteis: `--show` abre o painel ao iniciar, `--app` abre a janela principal,
+`--atualizar` instala a versão nova do GitHub sem perguntar (se houver).
 Rodar o exe de novo com o app já aberto só abre o painel (instância única).
 
 Gerar o executável (um único `.exe` + `.zip` em `publish\`):

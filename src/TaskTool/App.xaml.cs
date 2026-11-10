@@ -23,20 +23,27 @@ public partial class App : Application
     private MainWindow? _main;
     private HotKey? _hotKey;
     private DispatcherTimer? _relogio;
+    private DispatcherTimer? _verificacao;
+    private bool _donoDaTrava;
     private int _ultimaContagem = -1;
 
     public static TarefaStore Store { get; private set; } = null!;
+    public static Atualizador Updater { get; private set; } = null!;
     public static new App Current => (App)Application.Current;
     public string AtalhoTexto => _hotKey is { Registrado: true } h ? h.Descricao : "sem atalho";
 
     protected override void OnStartup(StartupEventArgs e)
     {
         // Instância única (por arquivo de banco): se já estiver rodando, pede para a outra
-        // abrir o painel e sai.
+        // abrir o painel e sai. Depois de uma atualização (--updated) a versão antiga ainda
+        // está terminando de fechar, então espera ela soltar a trava.
+        var acabouDeAtualizar = e.Args.Contains("--updated");
         var sufixo = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(Db.ResolverCaminho().ToLowerInvariant())))[..12];
-        _mutex = new Mutex(true, $"{NomeMutex}.{sufixo}", out var primeira);
-        if (!primeira)
+        _mutex = new Mutex(false, $"{NomeMutex}.{sufixo}");
+        try { _donoDaTrava = _mutex.WaitOne(acabouDeAtualizar ? TimeSpan.FromSeconds(20) : TimeSpan.Zero); }
+        catch (AbandonedMutexException) { _donoDaTrava = true; } // a anterior foi encerrada sem soltar
+        if (!_donoDaTrava)
         {
             try { EventWaitHandle.OpenExisting($"{NomeEventoMostrar}.{sufixo}").Set(); } catch { /* ignora */ }
             Shutdown();
@@ -56,6 +63,9 @@ public partial class App : Application
             MessageBox.Show(ex.Exception.Message, "TaskTool - erro", MessageBoxButton.OK, MessageBoxImage.Warning);
             ex.Handled = true;
         };
+
+        Atualizador.LimparSobras();
+        Updater = new Atualizador();
 
         Store = new TarefaStore();
         Store.Mudou += (_, _) => AtualizarIcone();
@@ -80,8 +90,71 @@ public partial class App : Application
         _relogio.Tick += (_, _) => Store.AtualizarTextosRelativos();
         _relogio.Start();
 
+        // Atualizações: verifica alguns segundos depois de abrir e depois a cada 6 horas.
+        _verificacao = new DispatcherTimer { Interval = TimeSpan.FromSeconds(5) };
+        _verificacao.Tick += async (_, _) =>
+        {
+            _verificacao.Interval = TimeSpan.FromHours(6);
+            if (Configuracoes.VerificarAtualizacoes) await VerificarAtualizacoesAsync(manual: false);
+        };
+        _verificacao.Start();
+
+        if (acabouDeAtualizar)
+            _tray.ShowNotification("TaskTool atualizado", $"Você está na versão {Updater.VersaoAtualTexto}.");
+
         if (e.Args.Contains("--show")) MostrarFlyout();
         if (e.Args.Contains("--app")) AbrirApp();
+        if (e.Args.Contains("--atualizar")) _ = AtualizarSemPerguntarAsync();
+    }
+
+    /// <summary>TaskTool.exe --atualizar: verifica e, se houver versão nova, instala sem perguntar.</summary>
+    private async Task AtualizarSemPerguntarAsync()
+    {
+        try
+        {
+            await Updater.VerificarAsync();
+            if (Updater.Disponivel is not null) await AtualizarAgoraAsync();
+        }
+        catch { /* sem rede etc.: segue na versão atual */ }
+    }
+
+    // ---------- Atualizações ----------
+
+    public async Task VerificarAtualizacoesAsync(bool manual)
+    {
+        try
+        {
+            var rel = await Updater.VerificarAsync();
+            if (!manual) return;
+            if (Updater.Disponivel is { } d)
+            {
+                var r = MessageBox.Show($"A versão {d.Versao.ToString(3)} está disponível (você tem a {Updater.VersaoAtualTexto}).\n\nAtualizar agora?",
+                    "TaskTool", MessageBoxButton.YesNo, MessageBoxImage.Information);
+                if (r == MessageBoxResult.Yes) await AtualizarAgoraAsync();
+            }
+            else
+            {
+                MessageBox.Show($"Você já está na versão mais recente ({Updater.VersaoAtualTexto})."
+                    + (rel is null ? "" : $"\nÚltima publicada: {rel.Versao.ToString(3)}."),
+                    "TaskTool", MessageBoxButton.OK, MessageBoxImage.Information);
+            }
+        }
+        catch (Exception ex)
+        {
+            if (manual)
+                MessageBox.Show("Não foi possível verificar atualizações:\n" + ex.Message, "TaskTool",
+                    MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    public async Task AtualizarAgoraAsync()
+    {
+        var exe = await Updater.BaixarETrocarAsync();
+        if (exe is null) return; // a mensagem de erro aparece na faixa do painel
+
+        Store.Flush();
+        Process.Start(new ProcessStartInfo(exe, "--updated") { UseShellExecute = false });
+        Sair();
     }
 
     // ---------- Painel ----------
@@ -139,9 +212,31 @@ public partial class App : Application
         menu.Items.Add(Item("Abrir pasta dos dados", () =>
             Process.Start(new ProcessStartInfo(Path.GetDirectoryName(Store.CaminhoBanco)!) { UseShellExecute = true })));
         menu.Items.Add(new Separator());
+
+        // Atualizações
+        var atualizarAgora = Item("", () => _ = AtualizarAgoraAsync());
+        atualizarAgora.FontWeight = FontWeights.SemiBold;
+        menu.Items.Add(atualizarAgora);
+        menu.Items.Add(Item("Verificar atualizações", () => _ = VerificarAtualizacoesAsync(manual: true)));
+        var autoVerificar = new MenuItem { Header = "Verificar automaticamente", IsCheckable = true };
+        autoVerificar.Click += (_, _) => Configuracoes.VerificarAtualizacoes = autoVerificar.IsChecked;
+        menu.Items.Add(autoVerificar);
+        var versao = new MenuItem { IsEnabled = false };
+        menu.Items.Add(versao);
+
+        menu.Items.Add(new Separator());
         menu.Items.Add(Item("Sair", Sair));
 
-        menu.Opened += (_, _) => autoStart.IsChecked = AutoStart.Ativo;
+        menu.Opened += (_, _) =>
+        {
+            autoStart.IsChecked = AutoStart.Ativo;
+            autoVerificar.IsChecked = Configuracoes.VerificarAtualizacoes;
+            versao.Header = $"TaskTool {Updater.VersaoAtualTexto}";
+            var d = Updater.Disponivel;
+            atualizarAgora.Visibility = d is null ? Visibility.Collapsed : Visibility.Visible;
+            atualizarAgora.IsEnabled = !Updater.Ocupado;
+            atualizarAgora.Header = d is null ? "" : $"Atualizar para {d.Versao.ToString(3)}";
+        };
         return menu;
 
         static MenuItem Item(string texto, Action acao)
@@ -194,7 +289,8 @@ public partial class App : Application
         _eventoMostrar?.Dispose();
         if (_mutex is not null)
         {
-            try { _mutex.ReleaseMutex(); } catch { /* não era dona */ }
+            if (_donoDaTrava)
+                try { _mutex.ReleaseMutex(); } catch { /* ignora */ }
             _mutex.Dispose();
         }
         base.OnExit(e);

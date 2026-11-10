@@ -41,6 +41,12 @@ public class EnumEqualsConverter : IValueConverter
         value is true && parameter is string s ? Enum.Parse(targetType, s) : Binding.DoNothing;
 }
 
+public class NotConverter : IValueConverter
+{
+    public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+    public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) => value is not true;
+}
+
 public class BoolToVisibilityConverter : IValueConverter
 {
     public bool Invert { get; set; }

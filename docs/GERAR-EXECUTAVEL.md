@@ -96,8 +96,17 @@ Depois feche o teste (menu → Sair) e apague o banco de teste se quiser:
 
 Os dados ficam em `%LocalAppData%\TaskTool\tarefas.db`, separados do exe: atualizar o exe não apaga tarefas.
 
-**Atualizar para uma versão nova:** Sair → substituir o `TaskTool.exe` → abrir de novo. Colunas novas
-no banco são criadas automaticamente na primeira execução.
+**Atualizar para uma versão nova (a partir da 1.1.0):** o app verifica as Releases do GitHub ao abrir e
+a cada 6 horas. Quando há versão nova aparece a faixa **"Atualização disponível"** no rodapé do painel:
+clique em **Atualizar** e ele baixa o zip do mesmo tipo (normal ou autocontido), troca o próprio exe e
+reabre. Também dá para usar o menu da engrenagem → **Verificar atualizações**, ou rodar
+`TaskTool.exe --atualizar`. As tarefas não são afetadas e colunas novas no banco são criadas sozinhas.
+
+> A verificação usa a API pública do GitHub, sem login: **só funciona com o repositório público.**
+> Com o repositório privado, "Verificar atualizações" avisa isso; a troca manual (Sair → substituir o
+> `TaskTool.exe` → abrir) continua funcionando.
+
+Versões 1.0.x não têm o atualizador: para sair delas, a troca é manual uma última vez.
 
 ## 6. Subir o código no GitHub
 
@@ -156,7 +165,16 @@ Sem o `gh`: no GitHub, *Releases → Draft a new release*, escolha a tag `v1.0.0
 
 1. Altere `<Version>` em `src/TaskTool/TaskTool.csproj` (ex.: `1.1.0`), ou passe `-Version` no script.
 2. Commit + push.
-3. Repita a seção 7 com a nova tag (`v1.1.0`).
+3. Repita a seção 7 com a nova tag (`v1.1.0`), ou, com o workflow da seção 9, só faça o push da tag.
+
+Quem já usa a 1.1.0 ou mais nova recebe o aviso no painel e atualiza com um clique.
+**Os nomes dos zips precisam seguir o padrão** `TaskTool-X.Y.Z-win-x64.zip` e
+`TaskTool-X.Y.Z-win-x64-self-contained.zip` (o `build.ps1` já gera assim), porque o atualizador escolhe
+o arquivo pelo final do nome.
+
+Para testar o atualizador sem publicar nada, aponte `TASKTOOL_UPDATE_FEED` para um JSON local no formato
+da API do GitHub (`tag_name`, `html_url`, `assets[].name`, `assets[].browser_download_url` com o caminho
+local do zip) e rode um exe com versão menor usando `--atualizar`.
 
 Convenção sugerida: `1.0.x` para correções, `1.x.0` para funcionalidades novas.
 
