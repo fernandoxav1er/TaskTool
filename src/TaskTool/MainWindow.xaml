@@ -65,7 +65,9 @@
                                         <TextBlock DockPanel.Dock="Right" Text="&#xE840;" FontFamily="{StaticResource IconFont}" FontSize="11"
                                                    Foreground="{StaticResource Accent}" Margin="6,2,0,0" ToolTip="Em foco"
                                                    Visibility="{Binding Foco, Converter={StaticResource BoolVis}}" />
-                                        <TextBlock Text="{Binding Titulo}" TextTrimming="CharacterEllipsis" FontSize="13.5" />
+                                        <TextBlock Text="{Binding Titulo}" ToolTip="{Binding Titulo}" FontSize="13.5"
+                                                   TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
+                                                   LineHeight="19" LineStackingStrategy="BlockLineHeight" MaxHeight="38" />
                                     </DockPanel>
                                     <TextBlock x:Name="Sub" Text="{Binding Subtitulo}" FontSize="11.5" Margin="0,2,0,0"
                                                Foreground="{StaticResource FgMuted}" TextTrimming="CharacterEllipsis" />
