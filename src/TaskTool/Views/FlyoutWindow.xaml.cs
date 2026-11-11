@@ -106,9 +106,10 @@ public partial class FlyoutWindow : Window
         if (e.Key != Key.Enter) return;
         var texto = NovaBox.Text.Trim();
         if (texto.Length == 0) return;
-        _store.Adicionar(texto);
+        var nova = _store.Adicionar(texto);
         NovaBox.Clear();
-        Rolagem.ScrollToEnd();
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
+            (Lista.ItemContainerGenerator.ContainerFromItem(nova) as FrameworkElement)?.BringIntoView());
         e.Handled = true;
     }
 
@@ -223,6 +224,8 @@ public partial class FlyoutWindow : Window
         // O índice na tela é da fila filtrada (sem a tarefa em foco); converte para Ativas.
         var alvoNaTela = IndiceSob(e.GetPosition(Lista));
         if (alvoNaTela < 0 || Lista.Items[alvoNaTela] is not Tarefa alvo || ReferenceEquals(alvo, item)) return;
+        // A lista é agrupada por status; o arraste só reordena dentro do mesmo grupo.
+        if (alvo.Status != item.Status) return;
         var de = _store.Ativas.IndexOf(item);
         var para = _store.Ativas.IndexOf(alvo);
         if (de >= 0 && para >= 0)

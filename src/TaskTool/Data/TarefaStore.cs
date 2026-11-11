@@ -37,7 +37,8 @@ public class TarefaStore : Observable
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += (_, _) => Flush();
 
-        foreach (var t in _db.Ativas())
+        // OrderBy é estável: dentro de cada status vale a ordem manual (Ordem).
+        foreach (var t in _db.Ativas().OrderBy(t => Peso(t.Status)))
             Ativas.Add(Canonica(t));
         Foco = Ativas.FirstOrDefault(t => t.Foco);
         Ativas.CollectionChanged += (_, _) => AvisarMudanca();
@@ -53,7 +54,8 @@ public class TarefaStore : Observable
             CriadaEm = DateTime.Now,
         };
         _db.Inserir(t);
-        Ativas.Add(Canonica(t));
+        Ativas.Insert(FimDoGrupo(t), Canonica(t));
+        SalvarOrdem();
         return t;
     }
 
@@ -72,8 +74,8 @@ public class TarefaStore : Observable
         else if (estavaConcluida)
         {
             t.ConcluidaEm = null;
-            t.Ordem = ProximaOrdem();
-            Ativas.Add(t);
+            Ativas.Insert(FimDoGrupo(t), t);
+            SalvarOrdem();
         }
 
         _db.Atualizar(t);
@@ -162,6 +164,32 @@ public class TarefaStore : Observable
 
     private int ProximaOrdem() => Ativas.Count == 0 ? 0 : Ativas.Max(x => x.Ordem) + 1;
 
+    /// <summary>Posição do status na lista: Fazendo → A fazer → Aguardando.</summary>
+    public static int Peso(StatusTarefa s) => s switch
+    {
+        StatusTarefa.Fazendo => 0,
+        StatusTarefa.AFazer => 1,
+        StatusTarefa.Aguardando => 2,
+        _ => 3,
+    };
+
+    /// <summary>Índice (na lista sem <paramref name="t"/>) logo após o último item do mesmo grupo.</summary>
+    private int FimDoGrupo(Tarefa t)
+    {
+        var peso = Peso(t.Status);
+        return Ativas.Count(x => !ReferenceEquals(x, t) && Peso(x.Status) <= peso);
+    }
+
+    /// <summary>Move a tarefa para o fim do grupo do seu status atual.</summary>
+    private void Reposicionar(Tarefa t)
+    {
+        var de = Ativas.IndexOf(t);
+        if (de < 0 || t.IsConcluida) return;
+        var para = FimDoGrupo(t);
+        if (para != de) Ativas.Move(de, para);
+        SalvarOrdem();
+    }
+
     private void AvisarMudanca() => Mudou?.Invoke(this, EventArgs.Empty);
 
     /// <summary>Devolve a instância já em memória para esse Id (ou passa a rastrear a nova).</summary>
@@ -179,6 +207,11 @@ public class TarefaStore : Observable
         _pendentes.Add(t);
         _timer.Stop();
         _timer.Start();
-        if (e.PropertyName == nameof(Tarefa.Status)) AvisarMudanca();
+        if (e.PropertyName == nameof(Tarefa.Status))
+        {
+            // Adiado para não mexer na coleção no meio do clique/binding que mudou o status.
+            _timer.Dispatcher.BeginInvoke(() => Reposicionar(t));
+            AvisarMudanca();
+        }
     }
 }
