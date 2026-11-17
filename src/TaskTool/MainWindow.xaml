@@ -291,10 +291,15 @@
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
-                    <TextBox x:Name="NotaBox" Padding="8,6" KeyDown="NotaBox_KeyDown" />
-                    <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=NotaBox}" Margin="10,0,0,0"
-                               Text="O que aconteceu? (Enter registra · Ctrl+Enter registra para reunião)" />
-                    <Button Grid.Column="1" Style="{StaticResource TextButton}" Content="Registrar" Margin="6,0,0,0" Click="AdicionarNota_Click" />
+                    <!-- Várias linhas: colar listas/trechos grandes; cresce até ~12 linhas e depois rola -->
+                    <TextBox x:Name="NotaBox" Padding="8,6" PreviewKeyDown="NotaBox_KeyDown"
+                             AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                             VerticalContentAlignment="Top" MaxHeight="240" VerticalScrollBarVisibility="Auto" />
+                    <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=NotaBox}" Margin="10,7,0,0"
+                               VerticalAlignment="Top"
+                               Text="O que aconteceu? (Enter registra · Shift+Enter nova linha · Ctrl+Enter para reunião)" />
+                    <Button Grid.Column="1" Style="{StaticResource TextButton}" Content="Registrar" Margin="6,0,0,0"
+                            VerticalAlignment="Top" Click="AdicionarNota_Click" />
                 </Grid>
 
                 <ItemsControl x:Name="Notas" Margin="0,8,0,0">
@@ -308,7 +313,26 @@
                                         <ColumnDefinition Width="Auto" />
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Quando}" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="0,1,0,0" />
-                                    <TextBlock Grid.Column="1" Text="{Binding Texto}" TextWrapping="Wrap" />
+                                    <!-- TextBox só leitura: dá para selecionar e copiar um trecho (IP, pasta…) -->
+                                    <StackPanel Grid.Column="1">
+                                        <TextBox x:Name="Txt" Text="{Binding Texto, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                                 Background="Transparent" BorderThickness="0" Padding="0" Margin="0" MinHeight="0"
+                                                 Foreground="{StaticResource Fg}" FontSize="14" MaxHeight="160"
+                                                 TextBlock.LineHeight="20" TextBlock.LineStackingStrategy="BlockLineHeight"
+                                                 VerticalScrollBarVisibility="Disabled" Cursor="IBeam" FocusVisualStyle="{x:Null}"
+                                                 PreviewMouseWheel="NotaTexto_PreviewMouseWheel">
+                                            <TextBox.Template>
+                                                <ControlTemplate TargetType="TextBox">
+                                                    <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" />
+                                                </ControlTemplate>
+                                            </TextBox.Template>
+                                        </TextBox>
+                                        <Button x:Name="Expandir" Style="{StaticResource TextButton}" Padding="6,3" Margin="-6,4,0,0" FontSize="12"
+                                                HorizontalAlignment="Left" Foreground="{StaticResource Accent}" Background="Transparent"
+                                                Content="{Binding TextoBotaoExpandir}" Click="ExpandirNota_Click"
+                                                Visibility="{Binding Longa, Converter={StaticResource BoolVis}}" />
+                                    </StackPanel>
                                     <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="6,-4,-4,-4">
                                         <Button x:Name="PautaBtn" Style="{StaticResource IconButton}" Content="&#xE7C1;"
                                                 FontSize="11" Padding="6" ToolTip="Levar para reunião (aparece na aba Pauta)"
@@ -324,6 +348,9 @@
                                     <Setter TargetName="Del" Property="Opacity" Value="1" />
                                     <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
                                 </Trigger>
+                                <DataTrigger Binding="{Binding Expandida}" Value="True">
+                                    <Setter TargetName="Txt" Property="MaxHeight" Value="Infinity" />
+                                </DataTrigger>
                                 <DataTrigger Binding="{Binding Pauta}" Value="True">
                                     <Setter TargetName="Bd" Property="Background" Value="{StaticResource PautaBg}" />
                                     <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />

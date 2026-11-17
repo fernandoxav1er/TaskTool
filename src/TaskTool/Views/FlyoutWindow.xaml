@@ -85,11 +85,11 @@
                                                VerticalAlignment="Center" />
                                 </StackPanel>
                             </StackPanel>
-                            <DockPanel Margin="0,4,0,0" ToolTip="{Binding UltimaNota}"
-                                       Visibility="{Binding UltimaNota, Converter={StaticResource BoolVis}}">
+                            <DockPanel Margin="0,4,0,0" ToolTip="{Binding UltimaNotaDica}"
+                                       Visibility="{Binding UltimaNotaResumo, Converter={StaticResource BoolVis}}">
                                 <TextBlock Text="&#xE70B;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
                                            Foreground="{StaticResource FgMuted}" Margin="0,2,6,0" VerticalAlignment="Top" />
-                                <TextBlock Text="{Binding UltimaNota}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
+                                <TextBlock Text="{Binding UltimaNotaResumo}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
                                            FontStyle="Italic" TextTrimming="CharacterEllipsis" />
                             </DockPanel>
                         </StackPanel>
@@ -156,11 +156,11 @@
                                                     </StackPanel>
                                                 </StackPanel>
                                                 <!-- Última anotação -->
-                                                <DockPanel Margin="0,3,0,0" ToolTip="{Binding UltimaNota}"
-                                                           Visibility="{Binding UltimaNota, Converter={StaticResource BoolVis}}">
+                                                <DockPanel Margin="0,3,0,0" ToolTip="{Binding UltimaNotaDica}"
+                                                           Visibility="{Binding UltimaNotaResumo, Converter={StaticResource BoolVis}}">
                                                     <TextBlock Text="&#xE70B;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
                                                                Foreground="{StaticResource FgMuted}" Margin="0,2,6,0" VerticalAlignment="Top" />
-                                                    <TextBlock Text="{Binding UltimaNota}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
+                                                    <TextBlock Text="{Binding UltimaNotaResumo}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
                                                                FontStyle="Italic" TextTrimming="CharacterEllipsis" />
                                                 </DockPanel>
                                             </StackPanel>

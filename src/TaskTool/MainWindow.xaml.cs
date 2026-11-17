@@ -490,11 +490,30 @@ public partial class MainWindow : Window
 
     // ---------- Anotações ----------
 
+    /// <summary>Enter registra, Ctrl+Enter registra para reunião, Shift+Enter pula linha (o TextBox trata).</summary>
     private void NotaBox_KeyDown(object sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter) return;
+        if (e.Key != Key.Enter || Keyboard.Modifiers.HasFlag(ModifierKeys.Shift)) return;
         AdicionarNota(pauta: Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
         e.Handled = true;
+    }
+
+    /// <summary>A rodinha sobre o texto de uma anotação rola a página, não o TextBox (que não tem barra).</summary>
+    private void NotaTexto_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
+    {
+        if (e.Handled || sender is not UIElement el) return;
+        e.Handled = true;
+        var paraCima = new MouseWheelEventArgs(e.MouseDevice, e.Timestamp, e.Delta)
+        {
+            RoutedEvent = UIElement.MouseWheelEvent,
+            Source = sender,
+        };
+        (System.Windows.Media.VisualTreeHelper.GetParent(el) as UIElement)?.RaiseEvent(paraCima);
+    }
+
+    private void ExpandirNota_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Anotacao a) a.Expandida = !a.Expandida;
     }
 
     private void AdicionarNota_Click(object sender, RoutedEventArgs e) => AdicionarNota(pauta: false);

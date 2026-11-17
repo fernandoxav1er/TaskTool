@@ -60,7 +60,17 @@ public class Tarefa : Observable
     private int _pautaQtd;
 
     /// <summary>Texto da anotação mais recente (aparece no card do painel). Vem da tabela Anotacao.</summary>
-    public string? UltimaNota { get => _ultimaNota; set => Set(ref _ultimaNota, value); }
+    public string? UltimaNota
+    {
+        get => _ultimaNota;
+        set { if (Set(ref _ultimaNota, value)) { Raise(nameof(UltimaNotaResumo)); Raise(nameof(UltimaNotaDica)); } }
+    }
+
+    /// <summary>Primeira linha não vazia da última anotação (o card tem uma linha só).</summary>
+    public string? UltimaNotaResumo => Anotacao.PrimeiraLinha(_ultimaNota);
+
+    /// <summary>Dica do card: a anotação até um limite, para o tooltip não ocupar a tela toda.</summary>
+    public string? UltimaNotaDica => Anotacao.Limitar(_ultimaNota, linhas: 15, caracteres: 800);
 
     /// <summary>Quantas anotações desta tarefa estão marcadas "para reunião".</summary>
     public int PautaQtd { get => _pautaQtd; set { if (Set(ref _pautaQtd, value)) Raise(nameof(TemPauta)); } }
@@ -163,6 +173,39 @@ public class Anotacao : Observable
 
     /// <summary>Marcada "para reunião": a tarefa aparece na aba Pauta até a nota ser desmarcada.</summary>
     public bool Pauta { get => _pauta; set => Set(ref _pauta, value); }
+
+    private const int LinhasRecolhida = 8;
+    private bool _expandida;
+
+    public int Linhas => Texto.Split('\n').Length;
+
+    /// <summary>Anotação comprida: aparece recolhida, com "Mostrar tudo".</summary>
+    public bool Longa => Linhas > LinhasRecolhida || Texto.Length > 700;
+
+    /// <summary>Somente visual: anotação longa aberta por inteiro.</summary>
+    public bool Expandida
+    {
+        get => _expandida;
+        set { if (Set(ref _expandida, value)) Raise(nameof(TextoBotaoExpandir)); }
+    }
+
+    public string TextoBotaoExpandir => Expandida ? "Mostrar menos" : $"Mostrar tudo ({Linhas} linhas)";
+
+    public static string? PrimeiraLinha(string? texto)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return null;
+        var linhas = texto.Replace("\r", "").Split('\n').Select(l => l.Trim()).Where(l => l.Length > 0).ToList();
+        return linhas.Count <= 1 ? linhas.FirstOrDefault() : linhas[0] + " …";
+    }
+
+    public static string? Limitar(string? texto, int linhas, int caracteres)
+    {
+        if (string.IsNullOrWhiteSpace(texto)) return null;
+        var partes = texto.Replace("\r", "").Split('\n');
+        var r = string.Join("\n", partes.Take(linhas));
+        if (r.Length > caracteres) r = r[..caracteres];
+        return r.Length < texto.Replace("\r", "").Length ? r.TrimEnd() + "\n…" : r;
+    }
     public string Quando => CriadaEm.ToString("dd/MM HH:mm");
 }
 

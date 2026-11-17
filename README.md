@@ -23,7 +23,10 @@ aplicativo completo abre.
 | Faixa "Atualização disponível" no painel | **Atualizar** baixa a versão nova do GitHub, troca o exe e reabre |
 
 No aplicativo: título, status, prazo (`dd/mm`), link, descrição e **anotações** (um log com data/hora
-do que aconteceu na tarefa). A anotação mais recente aparece no card do painel, então dá para ver de
+do que aconteceu na tarefa). Uma anotação pode ter várias linhas: cole listas e trechos grandes à vontade
+(`Enter` registra, `Shift+Enter` pula linha, `Ctrl+Enter` registra para reunião); as longas aparecem
+recolhidas com "Mostrar tudo", e o texto pode ser selecionado e copiado. A primeira linha da anotação mais
+recente aparece no card do painel, então dá para ver de
 relance por que algo está "Bloqueado". A aba **Concluídas** mostra o histórico, onde dá para reabrir uma tarefa.
 Tudo é salvo automaticamente.
 

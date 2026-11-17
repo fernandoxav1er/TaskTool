@@ -174,8 +174,23 @@ public class Workspace(string raiz)
         if (notas.Count == 0) sb.AppendLine("_Nenhuma._");
         foreach (var a in notas)
         {
-            var texto = a.Texto.Replace("\r", "").Replace("\n", " ");
-            sb.AppendLine($"- **{a.CriadaEm:dd/MM/yyyy HH:mm}**{(a.Pauta ? " 🚩 *para reunião*" : "")} — {texto}");
+            var cabecalho = $"- **{a.CriadaEm:dd/MM/yyyy HH:mm}**{(a.Pauta ? " 🚩 *para reunião*" : "")}";
+            var linhas = a.Texto.Replace("\r", "").Split('\n');
+            if (linhas.Length == 1)
+            {
+                sb.AppendLine($"{cabecalho} — {linhas[0]}");
+                continue;
+            }
+            // Várias linhas: recuadas dentro do item, com quebra forçada (dois espaços no fim, invisível no
+            // Bloco de Notas) para o Markdown não juntar tudo num parágrafo só.
+            sb.AppendLine(cabecalho);
+            for (var i = 0; i < linhas.Length; i++)
+            {
+                var l = linhas[i].TrimEnd();
+                var ultima = i == linhas.Length - 1;
+                sb.AppendLine(l.Length == 0 ? "" : "  " + l + (ultima || linhas[i + 1].Trim().Length == 0 ? "" : "  "));
+            }
+            sb.AppendLine();
         }
 
         var arquivo = Path.Combine(pasta, ArquivoNotas);
