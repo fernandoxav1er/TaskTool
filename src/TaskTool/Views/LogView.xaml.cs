@@ -7,21 +7,29 @@ using TaskTool.Services;
 
 namespace TaskTool.Views;
 
-/// <summary>Visualizador do log de diagnóstico (um arquivo por dia).</summary>
-public partial class LogWindow : Window
+/// <summary>Tela de logs dentro da janela principal (um arquivo de log por dia).</summary>
+public partial class LogView : UserControl
 {
     private List<EntradaLog> _entradas = [];
 
-    public LogWindow()
+    /// <summary>Usuário pediu para voltar às tarefas.</summary>
+    public event Action? Voltar;
+
+    public LogView() => InitializeComponent();
+
+    /// <summary>Chamado sempre que a tela é exibida: relê os arquivos e zera o alerta de erros novos.</summary>
+    public void Recarregar()
     {
-        InitializeComponent();
         CarregarDias();
+        Carregar();
         Log.MarcarComoVisto();
+        Lista.Focus();
     }
 
     private void CarregarDias()
     {
         var selecionado = DiaBox.SelectedItem is ComboBoxItem { Tag: DateTime d } ? d : DateTime.Today;
+        _carregandoDias = true;
         DiaBox.Items.Clear();
         var dias = Log.Dias();
         if (!dias.Contains(DateTime.Today)) dias.Insert(0, DateTime.Today);
@@ -31,7 +39,10 @@ public partial class LogWindow : Window
             DiaBox.Items.Add(new ComboBoxItem { Content = texto, Tag = dia });
         }
         DiaBox.SelectedIndex = Math.Max(0, dias.IndexOf(selecionado));
+        _carregandoDias = false;
     }
+
+    private bool _carregandoDias;
 
     private void Carregar()
     {
@@ -47,15 +58,12 @@ public partial class LogWindow : Window
 
     private void Filtro_Changed(object sender, RoutedEventArgs e)
     {
-        if (IsInitialized) Carregar();
+        if (IsInitialized && !_carregandoDias) Carregar();
     }
 
-    private void Atualizar_Click(object sender, RoutedEventArgs e)
-    {
-        CarregarDias();
-        Carregar();
-        Log.MarcarComoVisto();
-    }
+    private void Atualizar_Click(object sender, RoutedEventArgs e) => Recarregar();
+
+    private void Voltar_Click(object sender, RoutedEventArgs e) => Voltar?.Invoke();
 
     private void Copiar_Click(object sender, RoutedEventArgs e) => Copiar(_entradas);
 
@@ -74,19 +82,19 @@ public partial class LogWindow : Window
             Directory.CreateDirectory(Log.Pasta);
             Process.Start(new ProcessStartInfo(Log.Pasta) { UseShellExecute = true });
         }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Abrir pasta"); }
+        catch (Exception ex) { Log.Aviso("Abrir pasta de logs", ex); }
     }
 
-    private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
+    private void View_PreviewKeyDown(object sender, KeyEventArgs e)
     {
         switch (e.Key)
         {
             case Key.F5:
-                Atualizar_Click(sender, e);
+                Recarregar();
                 e.Handled = true;
                 break;
-            case Key.Escape:
-                Close();
+            case Key.Escape when DiaBox.IsDropDownOpen == false:
+                Voltar?.Invoke();
                 e.Handled = true;
                 break;
             case Key.C when Keyboard.Modifiers == ModifierKeys.Control && Lista.SelectedItem is EntradaLog sel

@@ -200,20 +200,12 @@ public class TarefaStore : Observable
         AvisarMudanca();
     }
 
-    /// <summary>Próximo status no ciclo A fazer → Fazendo → Aguardando → A fazer.</summary>
-    public void CiclarStatus(Tarefa t)
-    {
-        var proximo = t.Status switch
-        {
-            StatusTarefa.AFazer => StatusTarefa.Fazendo,
-            StatusTarefa.Fazendo => StatusTarefa.Aguardando,
-            _ => StatusTarefa.AFazer,
-        };
-        DefinirStatus(t, proximo);
-    }
+    /// <summary>Status que uma tarefa ativa pode ter, na ordem em que aparecem nas telas.</summary>
+    public static readonly StatusTarefa[] StatusAtivos =
+        [StatusTarefa.AFazer, StatusTarefa.EmAndamento, StatusTarefa.Bloqueado, StatusTarefa.AFinalizar];
 
     /// <summary>
-    /// Coloca a tarefa em foco (só uma por vez). Se ela estava "A fazer", passa para "Fazendo".
+    /// Coloca a tarefa em foco (só uma por vez). Se ela estava "A fazer", passa para "Em andamento".
     /// Passe null para tirar o foco.
     /// </summary>
     public void DefinirFoco(Tarefa? t)
@@ -227,7 +219,7 @@ public class TarefaStore : Observable
         if (t is not null)
         {
             t.Foco = true;
-            if (t.Status == StatusTarefa.AFazer) t.Status = StatusTarefa.Fazendo;
+            if (t.Status == StatusTarefa.AFazer) t.Status = StatusTarefa.EmAndamento;
             _db.Atualizar(t);
             _pendentes.Remove(t);
         }

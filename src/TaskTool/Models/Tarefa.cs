@@ -5,9 +5,11 @@ namespace TaskTool.Models;
 
 public enum StatusTarefa
 {
+    // Os números ficam gravados no banco: não reaproveitar. 1 e 2 eram "Fazendo" e "Aguardando" até a 1.2.
     AFazer = 0,
-    Fazendo = 1,
-    Aguardando = 2,
+    EmAndamento = 1,
+    Bloqueado = 2,
+    AFinalizar = 4,
     Concluida = 3,
 }
 
@@ -80,8 +82,9 @@ public class Tarefa : Observable
     public string StatusTexto => Status switch
     {
         StatusTarefa.AFazer => "A fazer",
-        StatusTarefa.Fazendo => "Fazendo",
-        StatusTarefa.Aguardando => "Aguardando",
+        StatusTarefa.EmAndamento => "Em andamento",
+        StatusTarefa.Bloqueado => "Bloqueado",
+        StatusTarefa.AFinalizar => "A finalizar",
         StatusTarefa.Concluida => "Concluída",
         _ => "",
     };

@@ -64,7 +64,7 @@
                                        TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                        LineHeight="20" LineStackingStrategy="BlockLineHeight" MaxHeight="60" />
                             <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
-                                <Button Style="{StaticResource StatusPill}" Click="Status_Click" ToolTip="Clique para mudar o status">
+                                <Button Style="{StaticResource StatusPill}" Click="Status_Click" ToolTip="Mudar o status">
                                     <StackPanel Orientation="Horizontal">
                                         <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center"
                                                  Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
@@ -133,7 +133,7 @@
                                                            LineHeight="19" LineStackingStrategy="BlockLineHeight" MaxHeight="57" />
                                                 <StackPanel Orientation="Horizontal" Margin="0,3,0,0">
                                                     <Button Style="{StaticResource StatusPill}" Click="Status_Click"
-                                                            ToolTip="Clique para mudar o status">
+                                                            ToolTip="Mudar o status">
                                                         <StackPanel Orientation="Horizontal">
                                                             <Ellipse Width="7" Height="7" Margin="0,0,5,0" VerticalAlignment="Center"
                                                                      Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
@@ -184,7 +184,7 @@
                                         <Setter TargetName="Chevron" Property="Opacity" Value="1" />
                                         <Setter TargetName="FocarBtn" Property="Opacity" Value="1" />
                                     </Trigger>
-                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static m:StatusTarefa.Fazendo}">
+                                    <DataTrigger Binding="{Binding Status}" Value="{x:Static m:StatusTarefa.EmAndamento}">
                                         <Setter TargetName="Barra" Property="Visibility" Value="Visible" />
                                     </DataTrigger>
                                     <DataTrigger Binding="{Binding Atrasada}" Value="True">

@@ -46,6 +46,10 @@ public partial class MainWindow : Window
         WorkspaceBtn.ToolTip = raiz is null ? "Escolher workspace" : $"{raiz}\nClique para trocar de workspace";
         Log.ErroRegistrado += () => Dispatcher.BeginInvoke(AtualizarAlertaLogs);
         AtualizarAlertaLogs();
+
+        TelaLogs.Voltar += () => MostrarTela(Tela.Tarefas);
+        TelaWorkspaces.Voltar += () => MostrarTela(Tela.Tarefas);
+        TelaWorkspaces.Escolhido += escolha => App.Current.TrocarWorkspace(escolha);
     }
 
     private AbaApp AbaAtual =>
@@ -59,8 +63,54 @@ public partial class MainWindow : Window
         AbaPauta.Content = _store.PautaPendentes > 0 ? $"Pauta ({_store.PautaPendentes})" : "Pauta";
 
     /// <param name="aba">Aba a mostrar. Null: a aba da tarefa (Ativas/Concluídas) ou Ativas.</param>
-    public void Exibir(Tarefa? tarefa, AbaApp? aba)
+    // ---------- Telas (layout único: uma por vez) ----------
+
+    public enum Tela { Tarefas, Logs, Workspaces }
+
+    public Tela TelaAtual { get; private set; } = Tela.Tarefas;
+
+    public void MostrarTela(Tela tela)
     {
+        TelaAtual = tela;
+        TelaTarefas.Visibility = tela == Tela.Tarefas ? Visibility.Visible : Visibility.Collapsed;
+        TelaLogs.Visibility = tela == Tela.Logs ? Visibility.Visible : Visibility.Collapsed;
+        TelaWorkspaces.Visibility = tela == Tela.Workspaces ? Visibility.Visible : Visibility.Collapsed;
+        Title = tela switch { Tela.Logs => "TaskTool - logs", Tela.Workspaces => "TaskTool - workspaces", _ => "TaskTool" };
+
+        switch (tela)
+        {
+            case Tela.Logs:
+                _store.Flush();
+                TelaLogs.Recarregar();
+                break;
+            case Tela.Workspaces:
+                _store.Flush();
+                TelaWorkspaces.Configurar(_store.Workspace?.Raiz, origemTarefas: _store.CaminhoBanco,
+                    aviso: App.BancoForcado
+                        ? "A variável TASKTOOL_DB está definida: o workspace é a pasta desse banco e trocar está desativado."
+                        : null,
+                    podeVoltar: true);
+                break;
+            default:
+                CarregarAnexos();
+                break;
+        }
+        AtualizarAlertaLogs();
+        if (!IsVisible || WindowState == WindowState.Minimized) Exibir(null, null, tela);
+    }
+
+    public void Exibir(Tarefa? tarefa, AbaApp? aba) => Exibir(tarefa, aba, Tela.Tarefas);
+
+    private void Exibir(Tarefa? tarefa, AbaApp? aba, Tela tela)
+    {
+        if (tela != Tela.Tarefas)
+        {
+            if (WindowState == WindowState.Minimized) WindowState = WindowState.Normal;
+            Show();
+            Activate();
+            return;
+        }
+        if (TelaAtual != Tela.Tarefas) MostrarTela(Tela.Tarefas);
         if (tarefa is not null && EmBusca) BuscaBox.Clear(); // abrir uma tarefa específica sai da busca
         aba ??= tarefa is { IsConcluida: true } ? AbaApp.Concluidas : AbaApp.Ativas;
         if (!EmBusca)
@@ -96,6 +146,7 @@ public partial class MainWindow : Window
 
     private void Window_PreviewKeyDown(object sender, KeyEventArgs e)
     {
+        if (TelaAtual != Tela.Tarefas) return; // Logs e Workspaces tratam o próprio teclado
         if (e.Key == Key.F && Keyboard.Modifiers == ModifierKeys.Control)
         {
             BuscaBox.Focus();
@@ -404,13 +455,9 @@ public partial class MainWindow : Window
         catch (Exception ex) { Log.Aviso("Mostrar anexo no Explorer", ex); MessageBox.Show(this, ex.Message, "Mostrar no Explorer"); }
     }
 
-    private void EscolherWorkspace_Click(object sender, RoutedEventArgs e) => App.Current.TrocarWorkspace();
+    private void EscolherWorkspace_Click(object sender, RoutedEventArgs e) => MostrarTela(Tela.Workspaces);
 
-    private void Logs_Click(object sender, RoutedEventArgs e)
-    {
-        App.Current.AbrirLogs();
-        AtualizarAlertaLogs();
-    }
+    private void Logs_Click(object sender, RoutedEventArgs e) => MostrarTela(Tela.Logs);
 
     /// <summary>Bolinha vermelha no botão de logs quando há erros/avisos ainda não vistos.</summary>
     public void AtualizarAlertaLogs()

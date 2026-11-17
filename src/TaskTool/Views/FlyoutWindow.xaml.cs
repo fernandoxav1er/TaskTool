@@ -1,4 +1,5 @@
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
 using System.Windows.Input;
@@ -75,11 +76,13 @@ public partial class FlyoutWindow : Window
     private void AtualizarResumo()
     {
         var n = _store.Ativas.Count;
-        var fazendo = _store.Ativas.Count(t => t.Status == StatusTarefa.Fazendo);
-        var aguardando = _store.Ativas.Count(t => t.Status == StatusTarefa.Aguardando);
+        var andamento = _store.Ativas.Count(t => t.Status == StatusTarefa.EmAndamento);
+        var bloqueadas = _store.Ativas.Count(t => t.Status == StatusTarefa.Bloqueado);
+        var finalizar = _store.Ativas.Count(t => t.Status == StatusTarefa.AFinalizar);
         var partes = new List<string> { n == 1 ? "1 ativa" : $"{n} ativas" };
-        if (fazendo > 0) partes.Add($"{fazendo} fazendo");
-        if (aguardando > 0) partes.Add($"{aguardando} aguardando");
+        if (andamento > 0) partes.Add($"{andamento} em andamento");
+        if (bloqueadas > 0) partes.Add(bloqueadas == 1 ? "1 bloqueada" : $"{bloqueadas} bloqueadas");
+        if (finalizar > 0) partes.Add($"{finalizar} a finalizar");
         Resumo.Text = string.Join(" · ", partes);
         Vazio.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -88,8 +91,8 @@ public partial class FlyoutWindow : Window
 
     private void Window_Deactivated(object? sender, EventArgs e)
     {
-        // Não fecha enquanto um menu (Opções) está aberto.
-        if (OpcoesBtn.ContextMenu is { IsOpen: true }) return;
+        // Não fecha enquanto um menu (Opções, status) está aberto.
+        if (OpcoesBtn.ContextMenu is { IsOpen: true } || _menuStatus is { IsOpen: true }) return;
         Esconder();
     }
 
@@ -156,9 +159,39 @@ public partial class FlyoutWindow : Window
         if (TarefaDe(sender) is { } t) _store.DefinirStatus(t, StatusTarefa.Concluida);
     }
 
+    private ContextMenu? _menuStatus;
+
+    /// <summary>Clique na pílula de status: menu com os status (o atual marcado) e "Concluir".</summary>
     private void Status_Click(object sender, RoutedEventArgs e)
     {
-        if (TarefaDe(sender) is { } t) _store.CiclarStatus(t);
+        if (TarefaDe(sender) is not { } t || sender is not FrameworkElement alvo) return;
+
+        var menu = new ContextMenu
+        {
+            FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable Text, Segoe UI"),
+            FontSize = 13,
+            PlacementTarget = alvo,
+            Placement = PlacementMode.Bottom,
+        };
+        foreach (var s in TarefaStore.StatusAtivos)
+        {
+            var item = new MenuItem
+            {
+                Header = new Tarefa { Status = s }.StatusTexto,
+                IsChecked = t.Status == s,
+                Icon = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = StatusBrushConverter.De(s) },
+            };
+            item.Click += (_, _) => _store.DefinirStatus(t, s);
+            menu.Items.Add(item);
+        }
+        menu.Items.Add(new Separator());
+        var concluir = new MenuItem { Header = "Concluir", Icon = new TextBlock { Text = "", FontFamily = (System.Windows.Media.FontFamily)FindResource("IconFont") } };
+        concluir.Click += (_, _) => _store.DefinirStatus(t, StatusTarefa.Concluida);
+        menu.Items.Add(concluir);
+
+        menu.Closed += (_, _) => { _menuStatus = null; if (!IsActive) Esconder(); };
+        _menuStatus = menu;
+        menu.IsOpen = true;
     }
 
     private void Focar_Click(object sender, RoutedEventArgs e)

@@ -13,7 +13,7 @@ aplicativo completo abre.
 | `Ctrl+Alt+T` | Abre/fecha o painel de qualquer lugar |
 | Painel: caixa do topo + `Enter` | Cadastra uma tarefa no fim da fila |
 | Painel: círculo à esquerda | Conclui a tarefa |
-| Painel: status (ex.: "● Fazendo") | Alterna A fazer → Fazendo → Aguardando |
+| Painel: status (ex.: "● Em andamento") | Abre um menu: A fazer, Em andamento, Bloqueado, A finalizar ou Concluir |
 | Painel: arrastar uma tarefa | Reordena a fila (mudar o status não mexe na posição) |
 | Painel: bandeirinha no rodapé | Abre a aba **Pauta** (aparece quando há anotações para reunião) |
 | Painel: alfinete (aparece ao passar o mouse) | Coloca a tarefa **em foco**: ela fica fixada no topo do painel |
@@ -24,7 +24,7 @@ aplicativo completo abre.
 
 No aplicativo: título, status, prazo (`dd/mm`), link, descrição e **anotações** (um log com data/hora
 do que aconteceu na tarefa). A anotação mais recente aparece no card do painel, então dá para ver de
-relance por que algo está "Aguardando". A aba **Concluídas** mostra o histórico, onde dá para reabrir uma tarefa.
+relance por que algo está "Bloqueado". A aba **Concluídas** mostra o histórico, onde dá para reabrir uma tarefa.
 Tudo é salvo automaticamente.
 
 **Pauta (para reunião):** a bandeirinha de uma anotação (ou `Ctrl+Enter` ao registrar) marca o assunto
@@ -32,7 +32,7 @@ para levar à reunião. A aba **Pauta** lista as tarefas com anotações marcada
 então você pode concluir a tarefa e o assunto continua lá. Depois de falar, clique na bandeirinha de novo
 para desmarcar.
 
-**Foco:** só uma tarefa fica em foco por vez. Focar uma tarefa "A fazer" já a passa para "Fazendo";
+**Foco:** só uma tarefa fica em foco por vez. Focar uma tarefa "A fazer" já a passa para "Em andamento";
 concluir a tarefa em foco tira o foco. O foco também aparece na dica do ícone da bandeja.
 
 Fechar a janela do aplicativo não encerra o programa: ele continua na bandeja. Para sair de vez, use
@@ -89,7 +89,7 @@ dotnet run --project src/TaskTool
 ```
 
 Argumentos úteis: `--show` abre o painel ao iniciar, `--app` abre a janela principal,
-`--atualizar` instala a versão nova do GitHub sem perguntar (se houver), `--logs` abre os logs.
+`--atualizar` instala a versão nova do GitHub sem perguntar (se houver), `--logs` / `--workspaces` abrem o app nessas telas.
 Rodar o exe de novo com o app já aberto só abre o painel (instância única).
 
 Gerar o executável (um único `.exe` + `.zip` em `publish\`):

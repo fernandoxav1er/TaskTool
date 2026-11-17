@@ -21,7 +21,6 @@ public partial class App : Application
     private System.Drawing.Icon? _iconeAtual;
     private FlyoutWindow? _flyout;
     private MainWindow? _main;
-    private LogWindow? _logs;
     private HotKey? _hotKey;
     private DispatcherTimer? _relogio;
     private DispatcherTimer? _verificacao;
@@ -134,6 +133,7 @@ public partial class App : Application
         if (e.Args.Contains("--show")) MostrarFlyout();
         if (e.Args.Contains("--app")) AbrirApp();
         if (e.Args.Contains("--logs")) AbrirLogs();
+        if (e.Args.Contains("--workspaces")) AbrirWorkspaces();
         if (e.Args.Contains("--atualizar")) _ = AtualizarSemPerguntarAsync();
     }
 
@@ -245,7 +245,7 @@ public partial class App : Application
         menu.Items.Add(autoStart);
         menu.Items.Add(Item("Abrir pasta dos dados", () =>
             Process.Start(new ProcessStartInfo(Path.GetDirectoryName(Store.CaminhoBanco)!) { UseShellExecute = true })));
-        var workspace = Item("Trocar workspace…", TrocarWorkspace);
+        var workspace = Item("Trocar workspace…", AbrirWorkspaces);
         menu.Items.Add(workspace);
         menu.Items.Add(Item("Ver logs", AbrirLogs));
         menu.Items.Add(new Separator());
@@ -289,7 +289,7 @@ public partial class App : Application
 
     // ---------- Workspace ----------
 
-    private static bool BancoForcado => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("TASKTOOL_DB"));
+    public static bool BancoForcado => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("TASKTOOL_DB"));
 
     /// <summary>
     /// Antes de abrir o banco: garante um workspace válido. Sem nenhum (primeira execução) ou com
@@ -308,7 +308,7 @@ public partial class App : Application
         var aviso = ws is null ? null : $"A pasta do workspace não foi encontrada:\n{ws}\nEscolha outra ou crie um novo.";
         if (ws is not null) Log.Aviso($"Workspace não encontrado: {ws}");
         // Primeira vez com tarefas de versões antigas (banco no %LocalAppData%): oferece trazer.
-        var dlg = new WorkspaceWindow(atual: null, origemTarefas: ws is null ? Db.CaminhoPadrao : null, aviso);
+        var dlg = new WorkspaceWindow(origemTarefas: ws is null ? Db.CaminhoPadrao : null, aviso);
         if (dlg.ShowDialog() != true || dlg.Escolha is not { } escolha) return false;
         return AplicarWorkspace(escolha, dono: null);
     }
@@ -339,41 +339,32 @@ public partial class App : Application
         }
     }
 
-    /// <summary>Opções &gt; Trocar workspace: abre o seletor e reinicia no workspace escolhido.</summary>
-    public void TrocarWorkspace()
+    /// <summary>Opções &gt; Trocar workspace: abre o app na tela de workspaces.</summary>
+    public void AbrirWorkspaces()
+    {
+        AbrirTela(TaskTool.MainWindow.Tela.Workspaces);
+    }
+
+    /// <summary>Opções &gt; Ver logs: abre o app na tela de logs.</summary>
+    public void AbrirLogs() => AbrirTela(TaskTool.MainWindow.Tela.Logs);
+
+    private void AbrirTela(TaskTool.MainWindow.Tela tela)
     {
         _flyout?.Esconder();
-        if (BancoForcado)
-        {
-            MessageBox.Show("Com a variável TASKTOOL_DB definida, o workspace é a pasta desse banco.", "TaskTool");
-            return;
-        }
-        var atual = Store.Workspace?.Raiz;
-        var dono = _main is { IsVisible: true } ? _main : null;
+        _main ??= new MainWindow(Store);
+        _main.MostrarTela(tela);
+    }
+
+    /// <summary>Workspace escolhido na tela de workspaces: grava e reinicia o app nele.</summary>
+    public void TrocarWorkspace(EscolhaWorkspace escolha)
+    {
+        if (Configuracoes.MesmaPasta(escolha.Pasta, Store.Workspace?.Raiz)) return;
+        if (BancoForcado) return; // modo TASKTOOL_DB: a tela avisa que trocar está desativado
         Store.Flush();
-        var dlg = new WorkspaceWindow(atual, origemTarefas: Store.CaminhoBanco) { Owner = dono };
-        if (dono is not null) dlg.WindowStartupLocation = WindowStartupLocation.CenterOwner;
-        if (dlg.ShowDialog() != true || dlg.Escolha is not { } escolha) return;
-        if (Configuracoes.MesmaPasta(escolha.Pasta, atual)) return;
-        if (!AplicarWorkspace(escolha, dono)) return;
+        if (!AplicarWorkspace(escolha, _main)) return;
 
         Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--aguardar={Environment.ProcessId} --app") { UseShellExecute = false });
         Sair();
-    }
-
-    public void AbrirLogs()
-    {
-        _flyout?.Esconder();
-        if (_logs is { IsVisible: true })
-        {
-            _logs.Activate();
-            return;
-        }
-        _logs = new LogWindow();
-        if (_main is { IsVisible: true }) _logs.Owner = _main;
-        else _logs.WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        _logs.Show();
-        _main?.AtualizarAlertaLogs();
     }
 
     // ---------- Ícone ----------
@@ -382,10 +373,12 @@ public partial class App : Application
     {
         if (_tray is null) return;
         var n = Store.Ativas.Count;
-        var fazendo = Store.Ativas.Count(t => t.Status == Models.StatusTarefa.Fazendo);
+        var andamento = Store.Ativas.Count(t => t.Status == Models.StatusTarefa.EmAndamento);
+        var bloqueadas = Store.Ativas.Count(t => t.Status == Models.StatusTarefa.Bloqueado);
         var dica = n == 0
             ? $"TaskTool: nenhuma tarefa ativa ({AtalhoTexto})"
-            : $"TaskTool: {n} ativa{(n == 1 ? "" : "s")}, {fazendo} fazendo ({AtalhoTexto})";
+            : $"TaskTool: {n} ativa{(n == 1 ? "" : "s")}, {andamento} em andamento"
+              + (bloqueadas > 0 ? $", {bloqueadas} bloqueada{(bloqueadas == 1 ? "" : "s")}" : "") + $" ({AtalhoTexto})";
         if (Store.Foco is { } foco)
         {
             var titulo = foco.Titulo.Length > 45 ? foco.Titulo[..44] + "…" : foco.Titulo;

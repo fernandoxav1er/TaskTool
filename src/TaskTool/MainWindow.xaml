@@ -3,12 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:local="clr-namespace:TaskTool"
         xmlns:m="clr-namespace:TaskTool.Models"
-        Title="TaskTool" Width="1000" Height="660" MinWidth="760" MinHeight="440"
+        xmlns:v="clr-namespace:TaskTool.Views"
+        Title="TaskTool" Width="1080" Height="660" MinWidth="760" MinHeight="440"
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/app.ico"
         FontFamily="Segoe UI Variable Text, Segoe UI"
         Closing="Window_Closing" PreviewKeyDown="Window_PreviewKeyDown" Activated="Window_Activated">
+    <!-- Layout único: uma tela por vez (Tarefas, Logs ou Workspaces) -->
     <Grid>
+    <Grid x:Name="TelaTarefas">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="340" />
             <ColumnDefinition Width="*" />
@@ -138,22 +141,29 @@
 
                 <!-- Status + ações -->
                 <Grid Margin="0,14,0,0">
-                    <StackPanel Orientation="Horizontal"
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <WrapPanel Margin="0,0,0,-6"
                                 Visibility="{Binding IsConcluida, Converter={StaticResource BoolVisInv}}">
-                        <RadioButton Style="{StaticResource StatusRadio}" Content="A fazer" GroupName="status"
+                        <RadioButton Style="{StaticResource StatusRadio}" Margin="0,0,6,6" Content="A fazer" GroupName="status"
                                      Tag="{x:Static local:StatusBrushConverter.AFazer}"
                                      IsChecked="{Binding Status, Converter={StaticResource EnumEq}, ConverterParameter=AFazer}" />
-                        <RadioButton Style="{StaticResource StatusRadio}" Content="Fazendo" GroupName="status"
-                                     Tag="{x:Static local:StatusBrushConverter.Fazendo}"
-                                     IsChecked="{Binding Status, Converter={StaticResource EnumEq}, ConverterParameter=Fazendo}" />
-                        <RadioButton Style="{StaticResource StatusRadio}" Content="Aguardando" GroupName="status"
-                                     Tag="{x:Static local:StatusBrushConverter.Aguardando}"
-                                     IsChecked="{Binding Status, Converter={StaticResource EnumEq}, ConverterParameter=Aguardando}" />
-                    </StackPanel>
+                        <RadioButton Style="{StaticResource StatusRadio}" Margin="0,0,6,6" Content="Em andamento" GroupName="status"
+                                     Tag="{x:Static local:StatusBrushConverter.EmAndamento}"
+                                     IsChecked="{Binding Status, Converter={StaticResource EnumEq}, ConverterParameter=EmAndamento}" />
+                        <RadioButton Style="{StaticResource StatusRadio}" Margin="0,0,6,6" Content="Bloqueado" GroupName="status"
+                                     Tag="{x:Static local:StatusBrushConverter.Bloqueado}"
+                                     IsChecked="{Binding Status, Converter={StaticResource EnumEq}, ConverterParameter=Bloqueado}" />
+                        <RadioButton Style="{StaticResource StatusRadio}" Margin="0,0,6,6" Content="A finalizar" GroupName="status"
+                                     Tag="{x:Static local:StatusBrushConverter.AFinalizar}"
+                                     IsChecked="{Binding Status, Converter={StaticResource EnumEq}, ConverterParameter=AFinalizar}" />
+                    </WrapPanel>
                     <TextBlock Text="{Binding Subtitulo}" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center"
                                Visibility="{Binding IsConcluida, Converter={StaticResource BoolVis}}" />
 
-                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Top" Margin="12,0,0,0">
                         <StackPanel Orientation="Horizontal" Margin="0,0,6,0"
                                     Visibility="{Binding IsConcluida, Converter={StaticResource BoolVisInv}}">
                             <Button Style="{StaticResource TextButton}" Click="Focar_Click" ToolTip="Fixar no topo do painel"
@@ -338,5 +348,9 @@
                 </Grid>
             </StackPanel>
         </ScrollViewer>
+    </Grid>
+
+    <v:LogView x:Name="TelaLogs" Visibility="Collapsed" />
+    <v:WorkspaceView x:Name="TelaWorkspaces" Visibility="Collapsed" />
     </Grid>
 </Window>
