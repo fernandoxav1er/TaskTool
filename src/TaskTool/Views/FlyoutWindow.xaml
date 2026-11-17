@@ -73,7 +73,25 @@
                                 </Button>
                                 <TextBlock x:Name="FocoDet" Text="{Binding Detalhe}" FontSize="11.5" Margin="4,0,0,0"
                                            Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="&#xE7C1;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
+                                           Foreground="{StaticResource PautaFg}" VerticalAlignment="Center" Margin="6,1,0,0"
+                                           ToolTip="Tem anotação para reunião"
+                                           Visibility="{Binding TemPauta, Converter={StaticResource BoolVis}}" />
+                                <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="Anexos na pasta da tarefa"
+                                            Visibility="{Binding QtdAnexos, Converter={StaticResource BoolVis}}">
+                                    <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
+                                               Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" Margin="0,1,2,0" />
+                                    <TextBlock Text="{Binding QtdAnexos}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
+                                               VerticalAlignment="Center" />
+                                </StackPanel>
                             </StackPanel>
+                            <DockPanel Margin="0,4,0,0" ToolTip="{Binding UltimaNota}"
+                                       Visibility="{Binding UltimaNota, Converter={StaticResource BoolVis}}">
+                                <TextBlock Text="&#xE70B;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
+                                           Foreground="{StaticResource FgMuted}" Margin="0,2,6,0" VerticalAlignment="Top" />
+                                <TextBlock Text="{Binding UltimaNota}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
+                                           FontStyle="Italic" TextTrimming="CharacterEllipsis" />
+                            </DockPanel>
                         </StackPanel>
 
                         <Button Grid.Column="2" Style="{StaticResource IconButton}" VerticalAlignment="Top" FontSize="12"
@@ -125,7 +143,26 @@
                                                     <TextBlock x:Name="Det" Text="{Binding Detalhe}" FontSize="11.5" Margin="4,0,0,0"
                                                                Foreground="{StaticResource FgMuted}" VerticalAlignment="Center"
                                                                TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Text="&#xE7C1;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
+                                                               Foreground="{StaticResource PautaFg}" VerticalAlignment="Center" Margin="6,1,0,0"
+                                                               ToolTip="Tem anotação para reunião"
+                                                               Visibility="{Binding TemPauta, Converter={StaticResource BoolVis}}" />
+                                                    <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="Anexos na pasta da tarefa"
+                                                                Visibility="{Binding QtdAnexos, Converter={StaticResource BoolVis}}">
+                                                        <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
+                                                                   Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" Margin="0,1,2,0" />
+                                                        <TextBlock Text="{Binding QtdAnexos}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
+                                                                   VerticalAlignment="Center" />
+                                                    </StackPanel>
                                                 </StackPanel>
+                                                <!-- Última anotação -->
+                                                <DockPanel Margin="0,3,0,0" ToolTip="{Binding UltimaNota}"
+                                                           Visibility="{Binding UltimaNota, Converter={StaticResource BoolVis}}">
+                                                    <TextBlock Text="&#xE70B;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
+                                                               Foreground="{StaticResource FgMuted}" Margin="0,2,6,0" VerticalAlignment="Top" />
+                                                    <TextBlock Text="{Binding UltimaNota}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
+                                                               FontStyle="Italic" TextTrimming="CharacterEllipsis" />
+                                                </DockPanel>
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
@@ -209,6 +246,14 @@
                         <Grid>
                             <TextBlock x:Name="Resumo" VerticalAlignment="Center" FontSize="12" Foreground="{StaticResource FgMuted}" />
                             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                <Button Style="{StaticResource IconButton}" ToolTip="Pauta: anotações para levar à reunião" Click="Pauta_Click"
+                                        Padding="8,6" Visibility="{Binding PautaPendentes, Converter={StaticResource BoolVis}}">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE7C1;" Foreground="{StaticResource PautaFg}" VerticalAlignment="Center" Margin="0,1,6,0" />
+                                        <TextBlock Text="{Binding PautaPendentes}" FontFamily="Segoe UI Variable Text, Segoe UI" FontSize="12"
+                                                   Foreground="{StaticResource PautaFg}" VerticalAlignment="Center" />
+                                    </StackPanel>
+                                </Button>
                                 <Button Style="{StaticResource IconButton}" Content="&#xE81C;" ToolTip="Concluídas" Click="Concluidas_Click" />
                                 <Button x:Name="OpcoesBtn" Style="{StaticResource IconButton}" Content="&#xE713;" ToolTip="Opções" Click="Opcoes_Click" />
                             </StackPanel>

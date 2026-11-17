@@ -24,6 +24,9 @@
             <SolidColorBrush x:Key="Accent" Color="#4CC2FF" />
             <SolidColorBrush x:Key="AccentFg" Color="#001A2E" />
             <SolidColorBrush x:Key="Danger" Color="#FF99A4" />
+            <!-- Anotações marcadas "para reunião" -->
+            <SolidColorBrush x:Key="PautaFg" Color="#FFC83D" />
+            <SolidColorBrush x:Key="PautaBg" Color="#1FFFC83D" />
 
             <!-- Botão só com ícone/texto, fundo aparece no hover -->
             <Style x:Key="IconButton" TargetType="Button">

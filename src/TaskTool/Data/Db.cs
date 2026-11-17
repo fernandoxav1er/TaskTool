@@ -20,16 +20,32 @@ public class Db
         Init();
     }
 
+    public const string NomeArquivo = "tarefas.db";
+
     /// <summary>
-    /// Caminho do banco. A variável de ambiente TASKTOOL_DB permite usar outro arquivo
-    /// (testes, ou um banco numa pasta sincronizada como o OneDrive).
+    /// Caminho do banco: TASKTOOL_DB (testes, outro arquivo) &gt; pasta do workspace &gt;
+    /// %LocalAppData%\TaskTool.
     /// </summary>
     public static string ResolverCaminho()
     {
         var custom = Environment.GetEnvironmentVariable("TASKTOOL_DB");
-        return !string.IsNullOrWhiteSpace(custom)
-            ? Path.GetFullPath(custom)
-            : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TaskTool", "tarefas.db");
+        if (!string.IsNullOrWhiteSpace(custom)) return Path.GetFullPath(custom);
+        if (Services.Configuracoes.Workspace is { } ws) return Path.Combine(ws, NomeArquivo);
+        return CaminhoPadrao;
+    }
+
+    public static string CaminhoPadrao =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "TaskTool", NomeArquivo);
+
+    /// <summary>Cópia consistente de um banco (API de backup do SQLite), mesmo com ele aberto.</summary>
+    public static void Copiar(string origem, string destino)
+    {
+        using var o = new SqliteConnection(new SqliteConnectionStringBuilder
+            { DataSource = origem, Mode = SqliteOpenMode.ReadOnly, Pooling = false }.ToString());
+        using var d = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = destino, Pooling = false }.ToString());
+        o.Open();
+        d.Open();
+        o.BackupDatabase(d);
     }
 
     private SqliteConnection Open()
@@ -67,19 +83,68 @@ public class Db
             """);
 
         // Migrações de colunas novas (bancos criados por versões anteriores).
-        using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT COUNT(*) FROM pragma_table_info('Tarefa') WHERE name = 'Foco'";
-        if ((long)cmd.ExecuteScalar()! == 0)
+        if (!TemColuna(c, "Tarefa", "Foco"))
             Exec(c, "ALTER TABLE Tarefa ADD COLUMN Foco INTEGER NOT NULL DEFAULT 0");
+        if (!TemColuna(c, "Anotacao", "Pauta"))
+            Exec(c, "ALTER TABLE Anotacao ADD COLUMN Pauta INTEGER NOT NULL DEFAULT 0");
+    }
+
+    private static bool TemColuna(SqliteConnection c, string tabela, string coluna)
+    {
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = $"SELECT COUNT(*) FROM pragma_table_info('{tabela}') WHERE name = $col";
+        cmd.Parameters.AddWithValue("$col", coluna);
+        return (long)cmd.ExecuteScalar()! > 0;
     }
 
     // ---------- Tarefas ----------
 
+    /// <summary>Colunas da tarefa + última anotação e quantidade de anotações "para reunião".</summary>
+    private const string SelectTarefa = """
+        SELECT t.*,
+               (SELECT a.Texto FROM Anotacao a WHERE a.TarefaId = t.Id ORDER BY a.CriadaEm DESC, a.Id DESC LIMIT 1) AS UltimaNota,
+               (SELECT COUNT(*) FROM Anotacao a WHERE a.TarefaId = t.Id AND a.Pauta = 1) AS PautaQtd
+        FROM Tarefa t
+        """;
+
     public List<Tarefa> Ativas() =>
-        QueryTarefas("SELECT * FROM Tarefa WHERE Status <> 3 ORDER BY Ordem, Id");
+        QueryTarefas($"{SelectTarefa} WHERE t.Status <> 3 ORDER BY t.Ordem, t.Id");
 
     public List<Tarefa> Concluidas(int limite = 200) =>
-        QueryTarefas("SELECT * FROM Tarefa WHERE Status = 3 ORDER BY ConcluidaEm DESC LIMIT $lim", ("$lim", limite));
+        QueryTarefas($"{SelectTarefa} WHERE t.Status = 3 ORDER BY t.ConcluidaEm DESC LIMIT $lim", ("$lim", limite));
+
+    public List<Tarefa> Todas() => QueryTarefas($"{SelectTarefa} ORDER BY t.Id");
+
+    /// <summary>Tarefas (ativas ou concluídas) com alguma anotação marcada "para reunião".</summary>
+    public List<Tarefa> ComPauta() =>
+        QueryTarefas($"""
+            {SelectTarefa}
+            WHERE EXISTS (SELECT 1 FROM Anotacao a WHERE a.TarefaId = t.Id AND a.Pauta = 1)
+            ORDER BY (t.Status = 3), t.Ordem, t.ConcluidaEm DESC
+            """);
+
+    public long ContarPauta()
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*) FROM Anotacao WHERE Pauta = 1";
+        return (long)cmd.ExecuteScalar()!;
+    }
+
+    /// <summary>Última anotação e quantidade "para reunião" de uma tarefa (após excluir/marcar notas).</summary>
+    public (string? UltimaNota, int PautaQtd) ResumoNotas(long tarefaId)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            SELECT (SELECT Texto FROM Anotacao WHERE TarefaId = $id ORDER BY CriadaEm DESC, Id DESC LIMIT 1),
+                   (SELECT COUNT(*) FROM Anotacao WHERE TarefaId = $id AND Pauta = 1)
+            """;
+        cmd.Parameters.AddWithValue("$id", tarefaId);
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        return (r.IsDBNull(0) ? null : r.GetString(0), r.GetInt32(1));
+    }
 
     /// <summary>
     /// Busca em título, descrição e anotações (ativas e concluídas), sem diferenciar
@@ -104,7 +169,7 @@ public class Db
         }
 
         return QueryTarefas($"""
-            SELECT t.* FROM Tarefa t
+            {SelectTarefa}
             WHERE {string.Join(" AND ", condicoes)}
             ORDER BY (t.Status = 3), t.Ordem, t.ConcluidaEm DESC
             LIMIT $lim
@@ -179,7 +244,7 @@ public class Db
     {
         using var c = Open();
         using var cmd = c.CreateCommand();
-        cmd.CommandText = "SELECT Id, TarefaId, Texto, CriadaEm FROM Anotacao WHERE TarefaId=$id ORDER BY CriadaEm DESC, Id DESC";
+        cmd.CommandText = "SELECT Id, TarefaId, Texto, CriadaEm, Pauta FROM Anotacao WHERE TarefaId=$id ORDER BY CriadaEm DESC, Id DESC";
         cmd.Parameters.AddWithValue("$id", tarefaId);
         using var r = cmd.ExecuteReader();
         var lista = new List<Anotacao>();
@@ -190,8 +255,15 @@ public class Db
                 TarefaId = r.GetInt64(1),
                 Texto = r.GetString(2),
                 CriadaEm = ParseData(r.GetString(3)),
+                Pauta = r.GetInt32(4) != 0,
             });
         return lista;
+    }
+
+    public void DefinirPauta(long anotacaoId, bool pauta)
+    {
+        using var c = Open();
+        Exec(c, "UPDATE Anotacao SET Pauta=$p WHERE Id=$id", ("$p", pauta ? 1 : 0), ("$id", anotacaoId));
     }
 
     public Anotacao InserirAnotacao(long tarefaId, string texto)
@@ -237,6 +309,8 @@ public class Db
                 CriadaEm = ParseData(r.GetString(r.GetOrdinal("CriadaEm"))),
                 ConcluidaEm = Str(r, "ConcluidaEm") is { } ce ? ParseData(ce) : null,
                 Foco = r.GetInt32(r.GetOrdinal("Foco")) != 0,
+                UltimaNota = Str(r, "UltimaNota"),
+                PautaQtd = r.GetInt32(r.GetOrdinal("PautaQtd")),
             });
         }
         return lista;

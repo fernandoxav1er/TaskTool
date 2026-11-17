@@ -54,6 +54,22 @@ public class Tarefa : Observable
     /// <summary>Tarefa em foco: aparece fixada no topo do painel. Só uma por vez.</summary>
     public bool Foco { get => _foco; set => Set(ref _foco, value); }
 
+    private string? _ultimaNota;
+    private int _pautaQtd;
+
+    /// <summary>Texto da anotação mais recente (aparece no card do painel). Vem da tabela Anotacao.</summary>
+    public string? UltimaNota { get => _ultimaNota; set => Set(ref _ultimaNota, value); }
+
+    /// <summary>Quantas anotações desta tarefa estão marcadas "para reunião".</summary>
+    public int PautaQtd { get => _pautaQtd; set { if (Set(ref _pautaQtd, value)) Raise(nameof(TemPauta)); } }
+
+    public bool TemPauta => PautaQtd > 0;
+
+    private int _qtdAnexos;
+
+    /// <summary>Arquivos na pasta da tarefa (sem o notas.md). Vem do workspace, não do banco.</summary>
+    public int QtdAnexos { get => _qtdAnexos; set => Set(ref _qtdAnexos, value); }
+
     /// <summary>Somente visual: item sendo arrastado no painel.</summary>
     public bool IsDragging { get => _isDragging; set => Set(ref _isDragging, value); }
 
@@ -114,12 +130,36 @@ public class Tarefa : Observable
     }
 }
 
-public class Anotacao
+/// <summary>Arquivo ou subpasta na pasta da tarefa, para a lista de anexos.</summary>
+public record AnexoItem(string Nome, string Caminho, bool EhPasta, string Info)
 {
+    public string Icone => EhPasta ? "" : "";
+
+    public static AnexoItem De(System.IO.FileSystemInfo f) => f switch
+    {
+        System.IO.FileInfo a => new(a.Name, a.FullName, false, $"{Tamanho(a.Length)} · {a.LastWriteTime:dd/MM HH:mm}"),
+        _ => new(f.Name, f.FullName, true, $"pasta · {f.LastWriteTime:dd/MM HH:mm}"),
+    };
+
+    private static string Tamanho(long b) => b switch
+    {
+        < 1024 => $"{b} B",
+        < 1024 * 1024 => $"{b / 1024.0:0} KB",
+        _ => $"{b / 1024.0 / 1024.0:0.0} MB",
+    };
+}
+
+public class Anotacao : Observable
+{
+    private bool _pauta;
+
     public long Id { get; set; }
     public long TarefaId { get; set; }
     public string Texto { get; set; } = "";
     public DateTime CriadaEm { get; set; }
+
+    /// <summary>Marcada "para reunião": a tarefa aparece na aba Pauta até a nota ser desmarcada.</summary>
+    public bool Pauta { get => _pauta; set => Set(ref _pauta, value); }
     public string Quando => CriadaEm.ToString("dd/MM HH:mm");
 }
 

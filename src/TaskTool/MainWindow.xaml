@@ -7,7 +7,7 @@
         WindowStartupLocation="CenterScreen"
         Icon="pack://application:,,,/Assets/app.ico"
         FontFamily="Segoe UI Variable Text, Segoe UI"
-        Closing="Window_Closing" PreviewKeyDown="Window_PreviewKeyDown">
+        Closing="Window_Closing" PreviewKeyDown="Window_PreviewKeyDown" Activated="Window_Activated">
     <Grid>
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="340" />
@@ -22,6 +22,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
 
                 <!-- Busca (títulos, descrições e anotações, ativas e concluídas) -->
@@ -39,6 +40,8 @@
                     <StackPanel x:Name="Abas" Orientation="Horizontal" Margin="4,0,0,8">
                         <RadioButton x:Name="AbaAtivas" Content="Ativas" Style="{StaticResource TabRadio}" IsChecked="True" Checked="Aba_Checked" />
                         <RadioButton x:Name="AbaConcluidas" Content="Concluídas" Style="{StaticResource TabRadio}" Checked="Aba_Checked" />
+                        <RadioButton x:Name="AbaPauta" Content="Pauta" Style="{StaticResource TabRadio}" Checked="Aba_Checked"
+                                     ToolTip="Tarefas com anotações marcadas para levar à reunião (ativas e concluídas)" />
                     </StackPanel>
                     <TextBlock x:Name="ResultadosTxt" Margin="4,4,0,12" FontSize="13" Foreground="{StaticResource FgMuted}" Visibility="Collapsed" />
                 </Grid>
@@ -65,6 +68,12 @@
                                         <TextBlock DockPanel.Dock="Right" Text="&#xE840;" FontFamily="{StaticResource IconFont}" FontSize="11"
                                                    Foreground="{StaticResource Accent}" Margin="6,2,0,0" ToolTip="Em foco"
                                                    Visibility="{Binding Foco, Converter={StaticResource BoolVis}}" />
+                                        <TextBlock DockPanel.Dock="Right" Text="&#xE7C1;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                                   Foreground="{StaticResource PautaFg}" Margin="6,2,0,0" ToolTip="Tem anotação para reunião"
+                                                   Visibility="{Binding TemPauta, Converter={StaticResource BoolVis}}" />
+                                        <TextBlock DockPanel.Dock="Right" Text="&#xE723;" FontFamily="{StaticResource IconFont}" FontSize="11"
+                                                   Foreground="{StaticResource FgMuted}" Margin="6,2,0,0" ToolTip="Tem anexos"
+                                                   Visibility="{Binding QtdAnexos, Converter={StaticResource BoolVis}}" />
                                         <TextBlock Text="{Binding Titulo}" ToolTip="{Binding Titulo}" FontSize="13.5"
                                                    TextWrapping="Wrap" TextTrimming="CharacterEllipsis"
                                                    LineHeight="19" LineStackingStrategy="BlockLineHeight" MaxHeight="38" />
@@ -85,6 +94,30 @@
                 <TextBlock Grid.Row="3" x:Name="ListaVazia" Text="Nada por aqui." Foreground="{StaticResource FgMuted}"
                            HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False"
                            Visibility="{Binding HasItems, ElementName=Lista, Converter={StaticResource BoolVisInv}}" />
+
+                <!-- Rodapé: workspace atual (clique para trocar) e logs -->
+                <Border Grid.Row="4" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0" Margin="-14,8,-14,-12" Padding="8,6">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" x:Name="LogsBtn" Style="{StaticResource IconButton}" Click="Logs_Click"
+                                ToolTip="Ver logs do aplicativo">
+                            <Grid>
+                                <TextBlock Text="&#xE9D9;" />
+                                <Ellipse x:Name="LogsAlerta" Width="7" Height="7" Fill="{StaticResource Danger}"
+                                         HorizontalAlignment="Right" VerticalAlignment="Top" Margin="0,-2,-3,0" Visibility="Collapsed" />
+                            </Grid>
+                        </Button>
+                        <Button x:Name="WorkspaceBtn" Style="{StaticResource TextButton}" Padding="8,5" HorizontalAlignment="Left"
+                                HorizontalContentAlignment="Left" Click="EscolherWorkspace_Click">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE8B7;" FontFamily="{StaticResource IconFont}" Margin="0,1,8,0" VerticalAlignment="Center"
+                                           Foreground="{StaticResource FgMuted}" />
+                                <TextBlock x:Name="WorkspaceNome" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" MaxWidth="220" />
+                                <TextBlock Text="&#xE70D;" FontFamily="{StaticResource IconFont}" FontSize="9" Margin="8,2,0,0"
+                                           VerticalAlignment="Center" Foreground="{StaticResource FgMuted}" />
+                            </StackPanel>
+                        </Button>
+                    </DockPanel>
+                </Border>
             </Grid>
         </Border>
 
@@ -93,7 +126,10 @@
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Visibility="{Binding SelectedItem, ElementName=Lista, Converter={StaticResource BoolVisInv}}" />
 
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto"
+        <!-- Soltar arquivos em qualquer ponto dos detalhes anexa à tarefa selecionada -->
+        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" AllowDrop="True"
+                      PreviewDragEnter="Detalhe_DragOver" PreviewDragOver="Detalhe_DragOver"
+                      PreviewDragLeave="Detalhe_DragLeave" PreviewDrop="Detalhe_Drop"
                       Visibility="{Binding SelectedItem, ElementName=Lista, Converter={StaticResource BoolVis}}">
             <StackPanel x:Name="Detalhe" Margin="32,22,32,28" DataContext="{Binding SelectedItem, ElementName=Lista}">
 
@@ -177,6 +213,67 @@
                          TextWrapping="Wrap" MinHeight="110" MaxHeight="320" VerticalScrollBarVisibility="Auto"
                          VerticalContentAlignment="Top" Padding="8,6" />
 
+                <!-- Anexos (pasta da tarefa no workspace) -->
+                <DockPanel Margin="0,18,0,6">
+                    <StackPanel x:Name="AnexosAcoes" DockPanel.Dock="Right" Orientation="Horizontal">
+                        <Button Style="{StaticResource TextButton}" Padding="10,3" FontSize="12" Click="Anexar_Click"
+                                ToolTip="Escolher arquivos para mover para a pasta da tarefa">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Anexar…" />
+                            </StackPanel>
+                        </Button>
+                        <Button Style="{StaticResource TextButton}" Padding="10,3" FontSize="12" Click="AbrirPasta_Click"
+                                ToolTip="Abrir a pasta da tarefa no Explorer">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="&#xE838;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                                <TextBlock Text="Abrir pasta" />
+                            </StackPanel>
+                        </Button>
+                    </StackPanel>
+                    <TextBlock x:Name="AnexosTitulo" Text="Anexos" Foreground="{StaticResource FgMuted}" FontSize="12" VerticalAlignment="Bottom" />
+                </DockPanel>
+
+                <Border x:Name="AnexosArea" CornerRadius="6" BorderThickness="1" BorderBrush="{StaticResource Stroke}" Padding="4"
+                        Background="Transparent">
+                    <Grid>
+                        <ItemsControl x:Name="AnexosLista">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type m:AnexoItem}">
+                                    <Border x:Name="Bd" CornerRadius="4" Padding="8,5" Background="Transparent" Cursor="Hand"
+                                            ToolTip="Mostrar no Explorer" MouseLeftButtonUp="Anexo_Click">
+                                        <DockPanel>
+                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Icone}" FontFamily="{StaticResource IconFont}"
+                                                       FontSize="13" Foreground="{StaticResource FgMuted}" Margin="0,1,10,0" VerticalAlignment="Center" />
+                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Info}" FontSize="11.5" Margin="10,0,0,0"
+                                                       Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" />
+                                            <TextBlock Text="{Binding Nome}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                        </DockPanel>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBg}" />
+                                        </Trigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="AnexosDica" Margin="8,8" FontSize="12" Foreground="{StaticResource FgMuted}" TextWrapping="Wrap"
+                                   Text="Arraste arquivos para cá (eles são movidos; segure Ctrl para copiar) ou cole um print com Ctrl+V." />
+                    </Grid>
+                </Border>
+
+                <!-- Sem workspace -->
+                <Border x:Name="SemWorkspace" CornerRadius="6" BorderThickness="1" BorderBrush="{StaticResource Stroke}" Padding="12,10"
+                        Visibility="Collapsed">
+                    <DockPanel>
+                        <Button DockPanel.Dock="Right" Style="{StaticResource TextButton}" Content="Escolher pasta…" FontSize="12"
+                                Padding="10,4" Click="EscolherWorkspace_Click" />
+                        <TextBlock Text="Escolha uma pasta de workspace para guardar os anexos: cada tarefa ganha uma subpasta."
+                                   TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" />
+                    </DockPanel>
+                </Border>
+
                 <!-- Anotações (log) -->
                 <TextBlock Style="{StaticResource SectionLabel}" Text="Anotações" />
                 <Grid>
@@ -186,7 +283,7 @@
                     </Grid.ColumnDefinitions>
                     <TextBox x:Name="NotaBox" Padding="8,6" KeyDown="NotaBox_KeyDown" />
                     <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=NotaBox}" Margin="10,0,0,0"
-                               Text="O que aconteceu? (Enter para registrar)" />
+                               Text="O que aconteceu? (Enter registra · Ctrl+Enter registra para reunião)" />
                     <Button Grid.Column="1" Style="{StaticResource TextButton}" Content="Registrar" Margin="6,0,0,0" Click="AdicionarNota_Click" />
                 </Grid>
 
@@ -202,15 +299,27 @@
                                     </Grid.ColumnDefinitions>
                                     <TextBlock Text="{Binding Quando}" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="0,1,0,0" />
                                     <TextBlock Grid.Column="1" Text="{Binding Texto}" TextWrapping="Wrap" />
-                                    <Button x:Name="Del" Grid.Column="2" Style="{StaticResource IconButton}" Content="&#xE74D;"
-                                            FontSize="11" Padding="6" Margin="6,-4,-4,-4" ToolTip="Excluir anotação"
-                                            Click="ExcluirNota_Click" Opacity="0" />
+                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="6,-4,-4,-4">
+                                        <Button x:Name="PautaBtn" Style="{StaticResource IconButton}" Content="&#xE7C1;"
+                                                FontSize="11" Padding="6" ToolTip="Levar para reunião (aparece na aba Pauta)"
+                                                Click="PautaNota_Click" Opacity="0" />
+                                        <Button x:Name="Del" Style="{StaticResource IconButton}" Content="&#xE74D;"
+                                                FontSize="11" Padding="6" ToolTip="Excluir anotação"
+                                                Click="ExcluirNota_Click" Opacity="0" />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <DataTemplate.Triggers>
                                 <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
                                     <Setter TargetName="Del" Property="Opacity" Value="1" />
+                                    <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
                                 </Trigger>
+                                <DataTrigger Binding="{Binding Pauta}" Value="True">
+                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource PautaBg}" />
+                                    <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
+                                    <Setter TargetName="PautaBtn" Property="Foreground" Value="{StaticResource PautaFg}" />
+                                    <Setter TargetName="PautaBtn" Property="ToolTip" Value="Para reunião · clique quando já tiver falado" />
+                                </DataTrigger>
                             </DataTemplate.Triggers>
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>

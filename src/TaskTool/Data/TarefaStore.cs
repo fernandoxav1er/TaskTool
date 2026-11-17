@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Windows.Threading;
 using TaskTool.Models;
+using TaskTool.Services;
 
 namespace TaskTool.Data;
 
@@ -32,17 +33,132 @@ public class TarefaStore : Observable
 
     public string CaminhoBanco => _db.Caminho;
 
+    /// <summary>Pasta do workspace (uma pasta por tarefa com os anexos), ou null se não configurado.</summary>
+    public Workspace? Workspace { get; }
+
     public TarefaStore()
     {
         _timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
         _timer.Tick += (_, _) => Flush();
 
-        // OrderBy é estável: dentro de cada status vale a ordem manual (Ordem).
-        foreach (var t in _db.Ativas().OrderBy(t => Peso(t.Status)))
+        if (Workspace.RaizConfigurada() is { } raiz) Workspace = new Workspace(raiz);
+
+        foreach (var t in _db.Ativas())
             Ativas.Add(Canonica(t));
         Foco = Ativas.FirstOrDefault(t => t.Foco);
+        PautaPendentes = (int)_db.ContarPauta();
         Ativas.CollectionChanged += (_, _) => AvisarMudanca();
+
+        if (Workspace is not null) CriarPastasQueFaltam();
     }
+
+    /// <summary>Toda tarefa (ativa ou concluída) ganha sua pasta, inclusive as de antes do workspace.</summary>
+    private void CriarPastasQueFaltam()
+    {
+        var ws = Workspace!;
+        var db = _db;
+        var dispatcher = _timer.Dispatcher;
+        Task.Run(() =>
+        {
+            foreach (var t in db.Todas())
+            {
+                try
+                {
+                    if (ws.Encontrar(t) is null) ws.EscreverNotas(t, db.Anotacoes(t.Id));
+                }
+                catch (Exception ex) { Log.Aviso($"Não foi possível criar a pasta da tarefa {t.Id} ({t.Titulo})", ex); }
+            }
+            dispatcher.BeginInvoke(AtualizarAnexos);
+        });
+    }
+
+    /// <summary>Recalcula a quantidade de anexos (padrão: das tarefas ativas, ao abrir o painel).</summary>
+    public void AtualizarAnexos() => AtualizarAnexos(Ativas);
+
+    public void AtualizarAnexos(IEnumerable<Tarefa> tarefas)
+    {
+        if (Workspace is null) return;
+        foreach (var t in tarefas)
+        {
+            try { t.QtdAnexos = Workspace.ContarAnexos(t); }
+            catch (Exception ex) { Log.Aviso($"Não foi possível contar os anexos da tarefa {t.Id}", ex); }
+        }
+    }
+
+    /// <summary>Atualiza nome da pasta, notas.md e contagem de anexos da tarefa. Nunca lança.</summary>
+    private void SincronizarPasta(Tarefa t)
+    {
+        if (Workspace is null || !_porId.ContainsKey(t.Id)) return;
+        try
+        {
+            Workspace.EscreverNotas(t, _db.Anotacoes(t.Id));
+            t.QtdAnexos = Workspace.ContarAnexos(t);
+        }
+        catch (Exception ex) { Log.Aviso($"Não foi possível atualizar a pasta da tarefa {t.Id} ({t.Titulo})", ex); }
+    }
+
+    /// <summary>Move (ou copia) arquivos para a pasta da tarefa. Devolve os erros (vazio se tudo deu certo).</summary>
+    public List<string> Anexar(Tarefa t, IEnumerable<string> arquivos, bool copiar)
+    {
+        if (Workspace is null) return ["Escolha um workspace em Opções > Trocar workspace…"];
+        Flush();
+        var erros = new List<string>();
+        try { Workspace.Anexar(t, arquivos, copiar, erros); }
+        catch (Exception ex) { erros.Add(ex.Message); }
+        foreach (var e in erros) Log.Aviso($"Anexar à tarefa {t.Id}: {e}");
+        SincronizarPasta(t);
+        return erros;
+    }
+
+    /// <summary>Salva uma imagem (ex.: print colado) como PNG na pasta da tarefa.</summary>
+    public string? AnexarImagem(Tarefa t, System.Windows.Media.Imaging.BitmapSource imagem)
+    {
+        if (Workspace is null) return "Escolha um workspace em Opções > Trocar workspace…";
+        try
+        {
+            var pasta = Workspace.Garantir(t);
+            var nome = $"print {DateTime.Now:yyyy-MM-dd HH-mm-ss}.png";
+            var caminho = System.IO.Path.Combine(pasta, nome);
+            using (var fs = System.IO.File.Create(caminho))
+            {
+                var enc = new System.Windows.Media.Imaging.PngBitmapEncoder();
+                enc.Frames.Add(System.Windows.Media.Imaging.BitmapFrame.Create(imagem));
+                enc.Save(fs);
+            }
+            SincronizarPasta(t);
+            return null;
+        }
+        catch (Exception ex)
+        {
+            Log.Erro($"Não foi possível salvar o print na tarefa {t.Id}", ex);
+            return ex.Message;
+        }
+    }
+
+    public List<System.IO.FileSystemInfo> Anexos(Tarefa t)
+    {
+        if (Workspace is null) return [];
+        try { return Workspace.Anexos(t); }
+        catch (Exception ex)
+        {
+            Log.Aviso($"Não foi possível listar os anexos da tarefa {t.Id}", ex);
+            return [];
+        }
+    }
+
+    /// <summary>Caminho da pasta da tarefa (cria se preciso), ou null sem workspace.</summary>
+    public string? PastaDa(Tarefa t)
+    {
+        if (Workspace is null) return null;
+        Flush();
+        return Workspace.Garantir(t);
+    }
+
+
+    private int _pautaPendentes;
+
+    /// <summary>Total de anotações marcadas "para reunião" (ativas e concluídas).</summary>
+    public int PautaPendentes { get => _pautaPendentes; private set => Set(ref _pautaPendentes, value); }
 
     public Tarefa Adicionar(string titulo)
     {
@@ -54,8 +170,8 @@ public class TarefaStore : Observable
             CriadaEm = DateTime.Now,
         };
         _db.Inserir(t);
-        Ativas.Insert(FimDoGrupo(t), Canonica(t));
-        SalvarOrdem();
+        Ativas.Add(Canonica(t));
+        SincronizarPasta(t);
         return t;
     }
 
@@ -74,12 +190,13 @@ public class TarefaStore : Observable
         else if (estavaConcluida)
         {
             t.ConcluidaEm = null;
-            Ativas.Insert(FimDoGrupo(t), t);
-            SalvarOrdem();
+            t.Ordem = ProximaOrdem();
+            Ativas.Add(t);
         }
 
         _db.Atualizar(t);
         _pendentes.Remove(t);
+        SincronizarPasta(t);
         AvisarMudanca();
     }
 
@@ -127,11 +244,14 @@ public class TarefaStore : Observable
 
     public void Excluir(Tarefa t)
     {
+        // Primeiro a pasta: se não der (arquivo aberto), a tarefa não é excluída e o erro aparece.
+        Workspace?.EnviarParaLixeira(t);
         _pendentes.Remove(t);
         _db.Excluir(t.Id);
         _porId.Remove(t.Id);
         if (ReferenceEquals(Foco, t)) Foco = null;
         Ativas.Remove(t);
+        if (t.TemPauta) PautaPendentes = (int)_db.ContarPauta();
     }
 
     public List<Tarefa> Concluidas()
@@ -146,15 +266,55 @@ public class TarefaStore : Observable
         return _db.Buscar(termo).Select(Canonica).ToList();
     }
 
+    public List<Tarefa> ComPauta()
+    {
+        Flush();
+        return _db.ComPauta().Select(Canonica).ToList();
+    }
+
     public List<Anotacao> Anotacoes(Tarefa t) => _db.Anotacoes(t.Id);
-    public Anotacao AdicionarAnotacao(Tarefa t, string texto) => _db.InserirAnotacao(t.Id, texto.Trim());
-    public void ExcluirAnotacao(Anotacao a) => _db.ExcluirAnotacao(a.Id);
+
+    public Anotacao AdicionarAnotacao(Tarefa t, string texto)
+    {
+        var a = _db.InserirAnotacao(t.Id, texto.Trim());
+        t.UltimaNota = a.Texto;
+        SincronizarPasta(t);
+        return a;
+    }
+
+    public void ExcluirAnotacao(Anotacao a)
+    {
+        _db.ExcluirAnotacao(a.Id);
+        AtualizarResumoNotas(a.TarefaId);
+    }
+
+    /// <summary>Marca/desmarca a anotação como assunto "para reunião".</summary>
+    public void DefinirPauta(Anotacao a, bool pauta)
+    {
+        if (a.Pauta == pauta) return;
+        _db.DefinirPauta(a.Id, pauta);
+        a.Pauta = pauta;
+        AtualizarResumoNotas(a.TarefaId);
+    }
+
+    private void AtualizarResumoNotas(long tarefaId)
+    {
+        if (_porId.TryGetValue(tarefaId, out var t))
+        {
+            (t.UltimaNota, t.PautaQtd) = _db.ResumoNotas(tarefaId);
+            SincronizarPasta(t);
+        }
+        PautaPendentes = (int)_db.ContarPauta();
+    }
 
     public void Flush()
     {
         _timer.Stop();
-        foreach (var t in _pendentes) _db.Atualizar(t);
+        if (_pendentes.Count == 0) return;
+        var salvas = _pendentes.ToList();
         _pendentes.Clear();
+        foreach (var t in salvas) _db.Atualizar(t);
+        foreach (var t in salvas) SincronizarPasta(t); // renomeia a pasta se o título mudou
     }
 
     public void AtualizarTextosRelativos()
@@ -163,32 +323,6 @@ public class TarefaStore : Observable
     }
 
     private int ProximaOrdem() => Ativas.Count == 0 ? 0 : Ativas.Max(x => x.Ordem) + 1;
-
-    /// <summary>Posição do status na lista: Fazendo → A fazer → Aguardando.</summary>
-    public static int Peso(StatusTarefa s) => s switch
-    {
-        StatusTarefa.Fazendo => 0,
-        StatusTarefa.AFazer => 1,
-        StatusTarefa.Aguardando => 2,
-        _ => 3,
-    };
-
-    /// <summary>Índice (na lista sem <paramref name="t"/>) logo após o último item do mesmo grupo.</summary>
-    private int FimDoGrupo(Tarefa t)
-    {
-        var peso = Peso(t.Status);
-        return Ativas.Count(x => !ReferenceEquals(x, t) && Peso(x.Status) <= peso);
-    }
-
-    /// <summary>Move a tarefa para o fim do grupo do seu status atual.</summary>
-    private void Reposicionar(Tarefa t)
-    {
-        var de = Ativas.IndexOf(t);
-        if (de < 0 || t.IsConcluida) return;
-        var para = FimDoGrupo(t);
-        if (para != de) Ativas.Move(de, para);
-        SalvarOrdem();
-    }
 
     private void AvisarMudanca() => Mudou?.Invoke(this, EventArgs.Empty);
 
@@ -207,11 +341,6 @@ public class TarefaStore : Observable
         _pendentes.Add(t);
         _timer.Stop();
         _timer.Start();
-        if (e.PropertyName == nameof(Tarefa.Status))
-        {
-            // Adiado para não mexer na coleção no meio do clique/binding que mudou o status.
-            _timer.Dispatcher.BeginInvoke(() => Reposicionar(t));
-            AvisarMudanca();
-        }
+        if (e.PropertyName == nameof(Tarefa.Status)) AvisarMudanca();
     }
 }

@@ -159,13 +159,15 @@ public class Atualizador : Observable
             Mensagem = "Reiniciando…";
             return exe;
         }
-        catch (UnauthorizedAccessException)
+        catch (UnauthorizedAccessException ex)
         {
+            Log.Erro($"Atualização para {rel.Versao.ToString(3)}: sem permissão na pasta {pasta}", ex);
             Mensagem = "Sem permissão para trocar o arquivo nesta pasta. Baixe pela página da versão.";
             return null;
         }
         catch (Exception ex)
         {
+            Log.Erro($"Atualização para {rel.Versao.ToString(3)} falhou", ex);
             Mensagem = "Falha ao atualizar: " + ex.Message;
             return null;
         }

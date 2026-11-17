@@ -7,14 +7,18 @@ using System.Windows.Input;
 using System.Windows.Threading;
 using TaskTool.Data;
 using TaskTool.Models;
+using TaskTool.Services;
 
 namespace TaskTool;
+
+public enum AbaApp { Ativas, Concluidas, Pauta }
 
 /// <summary>Janela completa: busca + lista à esquerda, detalhes e anotações da tarefa à direita.</summary>
 public partial class MainWindow : Window
 {
     private readonly TarefaStore _store;
     private readonly ObservableCollection<Tarefa> _concluidas = [];
+    private readonly ObservableCollection<Tarefa> _pauta = [];
     private readonly ObservableCollection<Tarefa> _resultados = [];
     private readonly ObservableCollection<Anotacao> _notas = [];
     private readonly DispatcherTimer _buscaTimer;
@@ -29,22 +33,40 @@ public partial class MainWindow : Window
 
         _buscaTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
         _buscaTimer.Tick += (_, _) => { _buscaTimer.Stop(); ExecutarBusca(); };
+
+        _store.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName == nameof(TarefaStore.PautaPendentes)) AtualizarTituloPauta();
+        };
+        AtualizarTituloPauta();
+
+        // Rodapé: nome do workspace e alerta de erros novos no log.
+        var raiz = _store.Workspace?.Raiz;
+        WorkspaceNome.Text = raiz is null ? "Sem workspace" : System.IO.Path.GetFileName(raiz.TrimEnd('\\'));
+        WorkspaceBtn.ToolTip = raiz is null ? "Escolher workspace" : $"{raiz}\nClique para trocar de workspace";
+        Log.ErroRegistrado += () => Dispatcher.BeginInvoke(AtualizarAlertaLogs);
+        AtualizarAlertaLogs();
     }
 
-    private bool MostrandoConcluidas => AbaConcluidas.IsChecked == true;
+    private AbaApp AbaAtual =>
+        AbaConcluidas.IsChecked == true ? AbaApp.Concluidas :
+        AbaPauta.IsChecked == true ? AbaApp.Pauta : AbaApp.Ativas;
+
     private bool EmBusca => BuscaBox.Text.Trim().Length > 0;
     private Tarefa? Selecionada => Lista.SelectedItem as Tarefa;
 
-    public void Exibir(Tarefa? tarefa, bool concluidas)
+    private void AtualizarTituloPauta() =>
+        AbaPauta.Content = _store.PautaPendentes > 0 ? $"Pauta ({_store.PautaPendentes})" : "Pauta";
+
+    /// <param name="aba">Aba a mostrar. Null: a aba da tarefa (Ativas/Concluídas) ou Ativas.</param>
+    public void Exibir(Tarefa? tarefa, AbaApp? aba)
     {
-        if (tarefa is not null)
-        {
-            concluidas = tarefa.IsConcluida;
-            if (EmBusca) BuscaBox.Clear(); // abrir uma tarefa específica sai da busca
-        }
+        if (tarefa is not null && EmBusca) BuscaBox.Clear(); // abrir uma tarefa específica sai da busca
+        aba ??= tarefa is { IsConcluida: true } ? AbaApp.Concluidas : AbaApp.Ativas;
         if (!EmBusca)
         {
-            if (concluidas) AbaConcluidas.IsChecked = true; else AbaAtivas.IsChecked = true;
+            var radio = aba switch { AbaApp.Concluidas => AbaConcluidas, AbaApp.Pauta => AbaPauta, _ => AbaAtivas };
+            radio.IsChecked = true;
         }
         CarregarLista();
 
@@ -80,6 +102,10 @@ public partial class MainWindow : Window
             BuscaBox.SelectAll();
             e.Handled = true;
         }
+        else if (e.Key == Key.V && Keyboard.Modifiers == ModifierKeys.Control && ColarAnexo())
+        {
+            e.Handled = true;
+        }
     }
 
     // ---------- Lista / abas ----------
@@ -101,18 +127,29 @@ public partial class MainWindow : Window
 
         Abas.Visibility = Visibility.Visible;
         ResultadosTxt.Visibility = Visibility.Collapsed;
-        NovaArea.Visibility = MostrandoConcluidas ? Visibility.Collapsed : Visibility.Visible;
+        NovaArea.Visibility = AbaAtual == AbaApp.Ativas ? Visibility.Visible : Visibility.Collapsed;
 
-        if (MostrandoConcluidas)
+        switch (AbaAtual)
         {
-            _concluidas.Clear();
-            foreach (var t in _store.Concluidas()) _concluidas.Add(t);
-            Lista.ItemsSource = _concluidas;
+            case AbaApp.Concluidas:
+                Recarregar(_concluidas, _store.Concluidas());
+                Lista.ItemsSource = _concluidas;
+                break;
+            case AbaApp.Pauta:
+                Recarregar(_pauta, _store.ComPauta());
+                Lista.ItemsSource = _pauta;
+                break;
+            default:
+                Lista.ItemsSource = _store.Ativas;
+                break;
         }
-        else
-        {
-            Lista.ItemsSource = _store.Ativas;
-        }
+    }
+
+    private void Recarregar(ObservableCollection<Tarefa> destino, IEnumerable<Tarefa> itens)
+    {
+        destino.Clear();
+        foreach (var t in itens) destino.Add(t);
+        _store.AtualizarAnexos(destino);
     }
 
     private void Lista_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -127,6 +164,7 @@ public partial class MainWindow : Window
         }
         foreach (var a in _store.Anotacoes(t)) _notas.Add(a);
         CriadaEmTxt.Text = $"Criada em {t.CriadaEm:dd/MM/yyyy HH:mm}";
+        CarregarAnexos();
     }
 
     private void NovaBox_KeyDown(object sender, KeyEventArgs e)
@@ -232,8 +270,154 @@ public partial class MainWindow : Window
         var idx = Lista.SelectedIndex;
         _store.Excluir(t);
         _concluidas.Remove(t);
+        _pauta.Remove(t);
         _resultados.Remove(t);
         SelecionarProxima(idx);
+    }
+
+    // ---------- Anexos ----------
+
+    private void Window_Activated(object? sender, EventArgs e)
+    {
+        // Arquivos podem ter sido adicionados/removidos pelo Explorer enquanto a janela estava atrás.
+        if (IsLoaded) CarregarAnexos();
+    }
+
+    private void CarregarAnexos()
+    {
+        var temWs = _store.Workspace is not null;
+        SemWorkspace.Visibility = temWs ? Visibility.Collapsed : Visibility.Visible;
+        AnexosArea.Visibility = temWs ? Visibility.Visible : Visibility.Collapsed;
+        AnexosAcoes.Visibility = temWs ? Visibility.Visible : Visibility.Collapsed;
+        if (Selecionada is not { } t || !temWs)
+        {
+            AnexosLista.ItemsSource = null;
+            return;
+        }
+        var itens = _store.Anexos(t).Select(AnexoItem.De).ToList();
+        AnexosLista.ItemsSource = itens;
+        AnexosDica.Visibility = itens.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        AnexosTitulo.Text = itens.Count == 0 ? "Anexos" : $"Anexos ({itens.Count})";
+        t.QtdAnexos = itens.Count;
+    }
+
+    private void Anexar(IEnumerable<string> arquivos, bool copiar)
+    {
+        if (Selecionada is not { } t) return;
+        var erros = _store.Anexar(t, arquivos, copiar);
+        CarregarAnexos();
+        if (erros.Count > 0)
+            MessageBox.Show(this, "Alguns itens não foram anexados:\n\n" + string.Join("\n", erros.Take(10)),
+                "Anexar", MessageBoxButton.OK, MessageBoxImage.Warning);
+    }
+
+    /// <summary>Copiar só se o usuário segurar Ctrl ou se a origem não permitir mover (ex.: dentro de um .zip).</summary>
+    private static DragDropEffects EfeitoDe(DragEventArgs e) =>
+        e.KeyStates.HasFlag(DragDropKeyStates.ControlKey) || !e.AllowedEffects.HasFlag(DragDropEffects.Move)
+            ? DragDropEffects.Copy
+            : DragDropEffects.Move;
+
+    private void Detalhe_DragOver(object sender, DragEventArgs e)
+    {
+        if (!e.Data.GetDataPresent(DataFormats.FileDrop)) return; // texto arrastado: deixa o TextBox tratar
+        if (_store.Workspace is null || Selecionada is null)
+        {
+            e.Effects = DragDropEffects.None;
+        }
+        else
+        {
+            e.Effects = EfeitoDe(e);
+            AnexosArea.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
+            AnexosArea.Background = (System.Windows.Media.Brush)FindResource("HoverBg");
+        }
+        e.Handled = true;
+    }
+
+    private void Detalhe_DragLeave(object sender, DragEventArgs e) => LimparDestaqueDrop();
+
+    private void Detalhe_Drop(object sender, DragEventArgs e)
+    {
+        LimparDestaqueDrop();
+        if (e.Data.GetData(DataFormats.FileDrop) is not string[] arquivos || arquivos.Length == 0) return;
+        var efeito = EfeitoDe(e);
+        e.Effects = efeito;
+        e.Handled = true;
+        Anexar(arquivos, copiar: efeito == DragDropEffects.Copy);
+    }
+
+    private void LimparDestaqueDrop()
+    {
+        AnexosArea.BorderBrush = (System.Windows.Media.Brush)FindResource("Stroke");
+        AnexosArea.Background = System.Windows.Media.Brushes.Transparent;
+    }
+
+    /// <summary>Ctrl+V fora de caixas de texto: cola arquivos (recortados = move, copiados = copia) ou um print.</summary>
+    private bool ColarAnexo()
+    {
+        if (_store.Workspace is null || Selecionada is not { } t) return false;
+        if (Keyboard.FocusedElement is TextBox) return false;
+
+        if (Clipboard.ContainsFileDropList())
+        {
+            var arquivos = Clipboard.GetFileDropList().Cast<string>().ToList();
+            var recortado = Clipboard.GetData("Preferred DropEffect") is System.IO.MemoryStream ms
+                            && ms.Length >= 4 && (new System.IO.BinaryReader(ms).ReadInt32() & (int)DragDropEffects.Move) != 0;
+            Anexar(arquivos, copiar: !recortado);
+            if (recortado) Clipboard.Clear(); // como no Explorer: depois de mover, recortar não vale mais
+            return true;
+        }
+        if (Clipboard.ContainsImage() && Clipboard.GetImage() is { } img)
+        {
+            if (_store.AnexarImagem(t, img) is { } erro)
+                MessageBox.Show(this, erro, "Colar print", MessageBoxButton.OK, MessageBoxImage.Warning);
+            CarregarAnexos();
+            return true;
+        }
+        return false;
+    }
+
+    private void Anexar_Click(object sender, RoutedEventArgs e)
+    {
+        var dlg = new Microsoft.Win32.OpenFileDialog
+        {
+            Title = "Anexar à tarefa (os arquivos são movidos para a pasta dela)",
+            Multiselect = true,
+        };
+        if (dlg.ShowDialog(this) == true) Anexar(dlg.FileNames, copiar: false);
+    }
+
+    private void AbrirPasta_Click(object sender, RoutedEventArgs e)
+    {
+        if (Selecionada is not { } t) return;
+        try
+        {
+            if (_store.PastaDa(t) is { } pasta)
+                Process.Start(new ProcessStartInfo(pasta) { UseShellExecute = true });
+        }
+        catch (Exception ex) { Log.Aviso("Abrir pasta da tarefa", ex); MessageBox.Show(this, ex.Message, "Abrir pasta"); }
+    }
+
+    private void Anexo_Click(object sender, MouseButtonEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is not AnexoItem a) return;
+        try { Process.Start("explorer.exe", $"/select,\"{a.Caminho}\""); }
+        catch (Exception ex) { Log.Aviso("Mostrar anexo no Explorer", ex); MessageBox.Show(this, ex.Message, "Mostrar no Explorer"); }
+    }
+
+    private void EscolherWorkspace_Click(object sender, RoutedEventArgs e) => App.Current.TrocarWorkspace();
+
+    private void Logs_Click(object sender, RoutedEventArgs e)
+    {
+        App.Current.AbrirLogs();
+        AtualizarAlertaLogs();
+    }
+
+    /// <summary>Bolinha vermelha no botão de logs quando há erros/avisos ainda não vistos.</summary>
+    public void AtualizarAlertaLogs()
+    {
+        var n = Log.ErrosNaoVistos;
+        LogsAlerta.Visibility = n > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LogsBtn.ToolTip = n > 0 ? $"Ver logs do aplicativo ({n} erro(s)/aviso(s) novos)" : "Ver logs do aplicativo";
     }
 
     private void SelecionarProxima(int indiceAnterior)
@@ -247,7 +431,7 @@ public partial class MainWindow : Window
         var link = Selecionada?.Link?.Trim();
         if (string.IsNullOrEmpty(link)) return;
         try { Process.Start(new ProcessStartInfo(link) { UseShellExecute = true }); }
-        catch (Exception ex) { MessageBox.Show(this, ex.Message, "Abrir link"); }
+        catch (Exception ex) { Log.Aviso($"Abrir link {link}", ex); MessageBox.Show(this, ex.Message, "Abrir link"); }
     }
 
     private void CampoSimples_KeyDown(object sender, KeyEventArgs e)
@@ -262,17 +446,24 @@ public partial class MainWindow : Window
     private void NotaBox_KeyDown(object sender, KeyEventArgs e)
     {
         if (e.Key != Key.Enter) return;
-        AdicionarNota();
+        AdicionarNota(pauta: Keyboard.Modifiers.HasFlag(ModifierKeys.Control));
         e.Handled = true;
     }
 
-    private void AdicionarNota_Click(object sender, RoutedEventArgs e) => AdicionarNota();
+    private void AdicionarNota_Click(object sender, RoutedEventArgs e) => AdicionarNota(pauta: false);
 
-    private void AdicionarNota()
+    private void AdicionarNota(bool pauta)
     {
         if (Selecionada is not { } t || NotaBox.Text.Trim().Length == 0) return;
-        _notas.Insert(0, _store.AdicionarAnotacao(t, NotaBox.Text));
+        var a = _store.AdicionarAnotacao(t, NotaBox.Text);
+        if (pauta) _store.DefinirPauta(a, true);
+        _notas.Insert(0, a);
         NotaBox.Clear();
+    }
+
+    private void PautaNota_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as FrameworkElement)?.DataContext is Anotacao a) _store.DefinirPauta(a, !a.Pauta);
     }
 
     private void ExcluirNota_Click(object sender, RoutedEventArgs e)

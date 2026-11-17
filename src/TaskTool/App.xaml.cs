@@ -21,6 +21,7 @@ public partial class App : Application
     private System.Drawing.Icon? _iconeAtual;
     private FlyoutWindow? _flyout;
     private MainWindow? _main;
+    private LogWindow? _logs;
     private HotKey? _hotKey;
     private DispatcherTimer? _relogio;
     private DispatcherTimer? _verificacao;
@@ -38,6 +39,30 @@ public partial class App : Application
         // abrir o painel e sai. Depois de uma atualização (--updated) a versão antiga ainda
         // está terminando de fechar, então espera ela soltar a trava.
         var acabouDeAtualizar = e.Args.Contains("--updated");
+
+        // Reinício (troca de workspace): espera a instância anterior fechar para pegar o atalho global.
+        if (e.Args.FirstOrDefault(a => a.StartsWith("--aguardar=")) is { } aguardar &&
+            int.TryParse(aguardar["--aguardar=".Length..], out var pid))
+        {
+            try { Process.GetProcessById(pid).WaitForExit(15000); } catch { /* já fechou */ }
+        }
+
+        // Erros que escapam: vão para o log (e os da UI também aparecem numa mensagem, mais abaixo).
+        AppDomain.CurrentDomain.UnhandledException += (_, ex) =>
+            Log.Erro("Erro fatal não tratado", ex.ExceptionObject as Exception);
+        TaskScheduler.UnobservedTaskException += (_, ex) =>
+        {
+            Log.Erro("Erro não tratado em tarefa de fundo", ex.Exception);
+            ex.SetObserved();
+        };
+        Log.Limpar();
+
+        // Primeira execução (ou pasta do workspace sumiu): escolher/criar o workspace antes de abrir o banco.
+        if (!GarantirWorkspaceNoInicio())
+        {
+            Shutdown();
+            return;
+        }
         var sufixo = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Encoding.UTF8.GetBytes(Db.ResolverCaminho().ToLowerInvariant())))[..12];
         _mutex = new Mutex(false, $"{NomeMutex}.{sufixo}");
@@ -60,13 +85,16 @@ public partial class App : Application
 
         DispatcherUnhandledException += (_, ex) =>
         {
-            MessageBox.Show(ex.Exception.Message, "TaskTool - erro", MessageBoxButton.OK, MessageBoxImage.Warning);
+            Log.Erro("Erro não tratado", ex.Exception);
+            MessageBox.Show(ex.Exception.Message + "\n\nDetalhes em Opções > Ver logs.", "TaskTool - erro",
+                MessageBoxButton.OK, MessageBoxImage.Warning);
             ex.Handled = true;
         };
 
         Atualizador.LimparSobras();
         Updater = new Atualizador();
 
+        Log.Info($"TaskTool {Updater.VersaoAtualTexto} iniciado · banco {Db.ResolverCaminho()}");
         Store = new TarefaStore();
         Store.Mudou += (_, _) => AtualizarIcone();
 
@@ -83,6 +111,7 @@ public partial class App : Application
 
         // Ctrl+Alt+T abre/fecha o painel de qualquer lugar.
         _hotKey = new HotKey(Native.MOD_CONTROL | Native.MOD_ALT, 0x54 /* T */, "Ctrl+Alt+T", AlternarFlyout);
+        if (!_hotKey.Registrado) Log.Aviso("Atalho Ctrl+Alt+T não registrado (outro programa já usa)");
         AtualizarIcone(forcar: true);
 
         // Atualiza textos tipo "criada hoje/ontem" periodicamente.
@@ -104,6 +133,7 @@ public partial class App : Application
 
         if (e.Args.Contains("--show")) MostrarFlyout();
         if (e.Args.Contains("--app")) AbrirApp();
+        if (e.Args.Contains("--logs")) AbrirLogs();
         if (e.Args.Contains("--atualizar")) _ = AtualizarSemPerguntarAsync();
     }
 
@@ -115,7 +145,7 @@ public partial class App : Application
             await Updater.VerificarAsync();
             if (Updater.Disponivel is not null) await AtualizarAgoraAsync();
         }
-        catch { /* sem rede etc.: segue na versão atual */ }
+        catch (Exception ex) { Log.Aviso("Atualização automática (--atualizar) falhou", ex); }
     }
 
     // ---------- Atualizações ----------
@@ -141,6 +171,8 @@ public partial class App : Application
         }
         catch (Exception ex)
         {
+            // Sem rede é comum na verificação automática: aviso, não erro.
+            Log.Aviso("Não foi possível verificar atualizações", ex);
             if (manual)
                 MessageBox.Show("Não foi possível verificar atualizações:\n" + ex.Message, "TaskTool",
                     MessageBoxButton.OK, MessageBoxImage.Warning);
@@ -150,8 +182,9 @@ public partial class App : Application
     public async Task AtualizarAgoraAsync()
     {
         var exe = await Updater.BaixarETrocarAsync();
-        if (exe is null) return; // a mensagem de erro aparece na faixa do painel
+        if (exe is null) return; // a mensagem aparece na faixa do painel (e o erro, no log)
 
+        Log.Info($"Atualizado; reiniciando em {exe}");
         Store.Flush();
         Process.Start(new ProcessStartInfo(exe, "--updated") { UseShellExecute = false });
         Sair();
@@ -177,11 +210,12 @@ public partial class App : Application
 
     // ---------- Janela principal ----------
 
-    public void AbrirApp(Models.Tarefa? tarefa = null, bool concluidas = false)
+    /// <param name="aba">Aba a mostrar; null mantém a atual (ou a da tarefa, se uma for passada).</param>
+    public void AbrirApp(Models.Tarefa? tarefa = null, AbaApp? aba = null)
     {
         _flyout?.Esconder();
         _main ??= new MainWindow(Store);
-        _main.Exibir(tarefa, concluidas);
+        _main.Exibir(tarefa, aba);
     }
 
     // ---------- Menu ----------
@@ -211,6 +245,9 @@ public partial class App : Application
         menu.Items.Add(autoStart);
         menu.Items.Add(Item("Abrir pasta dos dados", () =>
             Process.Start(new ProcessStartInfo(Path.GetDirectoryName(Store.CaminhoBanco)!) { UseShellExecute = true })));
+        var workspace = Item("Trocar workspace…", TrocarWorkspace);
+        menu.Items.Add(workspace);
+        menu.Items.Add(Item("Ver logs", AbrirLogs));
         menu.Items.Add(new Separator());
 
         // Atualizações
@@ -232,6 +269,9 @@ public partial class App : Application
             autoStart.IsChecked = AutoStart.Ativo;
             autoVerificar.IsChecked = Configuracoes.VerificarAtualizacoes;
             versao.Header = $"TaskTool {Updater.VersaoAtualTexto}";
+            workspace.ToolTip = Store.Workspace?.Raiz;
+            // Com TASKTOOL_DB o workspace é a pasta desse banco, não dá para trocar pelo menu.
+            workspace.IsEnabled = !BancoForcado;
             var d = Updater.Disponivel;
             atualizarAgora.Visibility = d is null ? Visibility.Collapsed : Visibility.Visible;
             atualizarAgora.IsEnabled = !Updater.Ocupado;
@@ -245,6 +285,95 @@ public partial class App : Application
             mi.Click += (_, _) => acao();
             return mi;
         }
+    }
+
+    // ---------- Workspace ----------
+
+    private static bool BancoForcado => !string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("TASKTOOL_DB"));
+
+    /// <summary>
+    /// Antes de abrir o banco: garante um workspace válido. Sem nenhum (primeira execução) ou com
+    /// a pasta sumida (OneDrive desmontado, pendrive), mostra o seletor. False = usuário desistiu.
+    /// </summary>
+    private static bool GarantirWorkspaceNoInicio()
+    {
+        if (BancoForcado) return true;
+        var ws = Configuracoes.Workspace;
+        if (ws is not null && Directory.Exists(ws))
+        {
+            Configuracoes.LembrarWorkspace(ws);
+            return true;
+        }
+
+        var aviso = ws is null ? null : $"A pasta do workspace não foi encontrada:\n{ws}\nEscolha outra ou crie um novo.";
+        if (ws is not null) Log.Aviso($"Workspace não encontrado: {ws}");
+        // Primeira vez com tarefas de versões antigas (banco no %LocalAppData%): oferece trazer.
+        var dlg = new WorkspaceWindow(atual: null, origemTarefas: ws is null ? Db.CaminhoPadrao : null, aviso);
+        if (dlg.ShowDialog() != true || dlg.Escolha is not { } escolha) return false;
+        return AplicarWorkspace(escolha, dono: null);
+    }
+
+    /// <summary>Copia o banco (se pedido), grava a configuração e lembra nos recentes.</summary>
+    private static bool AplicarWorkspace(EscolhaWorkspace e, Window? dono)
+    {
+        try
+        {
+            var destino = Path.Combine(e.Pasta, Db.NomeArquivo);
+            if (e.CopiarDe is { } origem && !File.Exists(destino))
+            {
+                Db.Copiar(origem, destino);
+                Log.Info($"Tarefas copiadas de {origem} para {destino}");
+            }
+            Configuracoes.Workspace = e.Pasta;
+            Configuracoes.LembrarWorkspace(e.Pasta);
+            Log.Info($"Workspace: {e.Pasta}");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Erro($"Não foi possível usar o workspace {e.Pasta}", ex);
+            var msg = "Não foi possível usar essa pasta:\n" + ex.Message;
+            if (dono is null) MessageBox.Show(msg, "TaskTool", MessageBoxButton.OK, MessageBoxImage.Warning);
+            else MessageBox.Show(dono, msg, "TaskTool", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
+        }
+    }
+
+    /// <summary>Opções &gt; Trocar workspace: abre o seletor e reinicia no workspace escolhido.</summary>
+    public void TrocarWorkspace()
+    {
+        _flyout?.Esconder();
+        if (BancoForcado)
+        {
+            MessageBox.Show("Com a variável TASKTOOL_DB definida, o workspace é a pasta desse banco.", "TaskTool");
+            return;
+        }
+        var atual = Store.Workspace?.Raiz;
+        var dono = _main is { IsVisible: true } ? _main : null;
+        Store.Flush();
+        var dlg = new WorkspaceWindow(atual, origemTarefas: Store.CaminhoBanco) { Owner = dono };
+        if (dono is not null) dlg.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        if (dlg.ShowDialog() != true || dlg.Escolha is not { } escolha) return;
+        if (Configuracoes.MesmaPasta(escolha.Pasta, atual)) return;
+        if (!AplicarWorkspace(escolha, dono)) return;
+
+        Process.Start(new ProcessStartInfo(Environment.ProcessPath!, $"--aguardar={Environment.ProcessId} --app") { UseShellExecute = false });
+        Sair();
+    }
+
+    public void AbrirLogs()
+    {
+        _flyout?.Esconder();
+        if (_logs is { IsVisible: true })
+        {
+            _logs.Activate();
+            return;
+        }
+        _logs = new LogWindow();
+        if (_main is { IsVisible: true }) _logs.Owner = _main;
+        else _logs.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        _logs.Show();
+        _main?.AtualizarAlertaLogs();
     }
 
     // ---------- Ícone ----------
@@ -282,7 +411,8 @@ public partial class App : Application
 
     protected override void OnExit(ExitEventArgs e)
     {
-        try { Store?.Flush(); } catch { /* ignora */ }
+        try { Store?.Flush(); } catch (Exception ex) { Log.Erro("Falha ao salvar ao sair", ex); }
+        if (_donoDaTrava) Log.Info("TaskTool encerrado");
         _hotKey?.Dispose();
         _tray?.Dispose();
         _iconeAtual?.Dispose();

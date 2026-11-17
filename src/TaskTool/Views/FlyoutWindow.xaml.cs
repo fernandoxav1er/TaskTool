@@ -41,6 +41,7 @@ public partial class FlyoutWindow : Window
     public void Mostrar()
     {
         _store.AtualizarTextosRelativos();
+        _store.AtualizarAnexos();
         AtualizarResumo();
         Posicionar();
 
@@ -115,7 +116,9 @@ public partial class FlyoutWindow : Window
 
     private void AbrirApp_Click(object sender, RoutedEventArgs e) => App.Current.AbrirApp();
 
-    private void Concluidas_Click(object sender, RoutedEventArgs e) => App.Current.AbrirApp(concluidas: true);
+    private void Concluidas_Click(object sender, RoutedEventArgs e) => App.Current.AbrirApp(aba: AbaApp.Concluidas);
+
+    private void Pauta_Click(object sender, RoutedEventArgs e) => App.Current.AbrirApp(aba: AbaApp.Pauta);
 
     private void Opcoes_Click(object sender, RoutedEventArgs e)
     {
@@ -224,8 +227,6 @@ public partial class FlyoutWindow : Window
         // O índice na tela é da fila filtrada (sem a tarefa em foco); converte para Ativas.
         var alvoNaTela = IndiceSob(e.GetPosition(Lista));
         if (alvoNaTela < 0 || Lista.Items[alvoNaTela] is not Tarefa alvo || ReferenceEquals(alvo, item)) return;
-        // A lista é agrupada por status; o arraste só reordena dentro do mesmo grupo.
-        if (alvo.Status != item.Status) return;
         var de = _store.Ativas.IndexOf(item);
         var para = _store.Ativas.IndexOf(alvo);
         if (de >= 0 && para >= 0)

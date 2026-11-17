@@ -1,0 +1,95 @@
+<Window x:Class="TaskTool.Views.LogWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:s="clr-namespace:TaskTool.Services"
+        Title="TaskTool - logs" Width="860" Height="560" MinWidth="560" MinHeight="320"
+        WindowStartupLocation="CenterOwner"
+        Icon="pack://application:,,,/Assets/app.ico"
+        FontFamily="Segoe UI Variable Text, Segoe UI"
+        PreviewKeyDown="Window_PreviewKeyDown">
+    <Grid Margin="16,12,16,14">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Barra -->
+        <DockPanel Margin="0,0,0,10">
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button Style="{StaticResource TextButton}" Padding="10,4" FontSize="12" Click="Atualizar_Click" ToolTip="Recarregar (F5)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE72C;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Atualizar" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource TextButton}" Padding="10,4" FontSize="12" Click="Copiar_Click"
+                        ToolTip="Copia as entradas exibidas (ou só a selecionada, com Ctrl+C)">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE8C8;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Copiar" />
+                    </StackPanel>
+                </Button>
+                <Button Style="{StaticResource TextButton}" Padding="10,4" FontSize="12" Click="AbrirPasta_Click"
+                        ToolTip="Abrir a pasta dos arquivos de log">
+                    <StackPanel Orientation="Horizontal">
+                        <TextBlock Text="&#xE838;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                        <TextBlock Text="Abrir pasta" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+            <StackPanel Orientation="Horizontal">
+                <ComboBox x:Name="DiaBox" Width="150" SelectionChanged="Filtro_Changed" />
+                <CheckBox x:Name="SoErros" Content="Só erros e avisos" Margin="16,0,0,0" VerticalAlignment="Center"
+                          Checked="Filtro_Changed" Unchecked="Filtro_Changed" />
+            </StackPanel>
+        </DockPanel>
+
+        <ListBox x:Name="Lista" Grid.Row="1" Background="Transparent" BorderBrush="{StaticResource Stroke}" BorderThickness="1"
+                 ScrollViewer.HorizontalScrollBarVisibility="Disabled" VirtualizingPanel.IsVirtualizing="True"
+                 VirtualizingPanel.ScrollUnit="Pixel">
+            <ListBox.ItemTemplate>
+                <DataTemplate DataType="{x:Type s:EntradaLog}">
+                    <Grid Margin="0,3">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="58" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="{Binding Hora}" FontFamily="Cascadia Mono, Consolas" FontSize="12"
+                                   Foreground="{StaticResource FgMuted}" Margin="0,1,0,0" />
+                        <Border Grid.Column="1" x:Name="Pill" CornerRadius="3" Padding="5,0" HorizontalAlignment="Left"
+                                VerticalAlignment="Top" Margin="0,1,0,0" Background="#22FFFFFF">
+                            <TextBlock x:Name="NivelTxt" Text="{Binding NivelTexto}" FontSize="10.5" FontWeight="SemiBold"
+                                       Foreground="{StaticResource FgMuted}" />
+                        </Border>
+                        <StackPanel Grid.Column="2">
+                            <TextBlock Text="{Binding Mensagem}" TextWrapping="Wrap" FontSize="12.5" />
+                            <Expander Header="detalhes" FontSize="11.5" Margin="0,2,0,0" Foreground="{StaticResource FgMuted}"
+                                      Visibility="{Binding TemDetalhe, Converter={StaticResource BoolVis}}">
+                                <TextBox Text="{Binding Detalhe, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                         FontFamily="Cascadia Mono, Consolas" FontSize="11" Padding="6,4" Margin="0,4,0,0"
+                                         Background="#0CFFFFFF" BorderThickness="0" />
+                            </Expander>
+                        </StackPanel>
+                    </Grid>
+                    <DataTemplate.Triggers>
+                        <DataTrigger Binding="{Binding Nivel}" Value="{x:Static s:NivelLog.Erro}">
+                            <Setter TargetName="Pill" Property="Background" Value="#33FF99A4" />
+                            <Setter TargetName="NivelTxt" Property="Foreground" Value="{StaticResource Danger}" />
+                        </DataTrigger>
+                        <DataTrigger Binding="{Binding Nivel}" Value="{x:Static s:NivelLog.Aviso}">
+                            <Setter TargetName="Pill" Property="Background" Value="{StaticResource PautaBg}" />
+                            <Setter TargetName="NivelTxt" Property="Foreground" Value="{StaticResource PautaFg}" />
+                        </DataTrigger>
+                    </DataTemplate.Triggers>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+
+        <TextBlock x:Name="Vazio" Grid.Row="1" Text="Nada registrado neste dia." Foreground="{StaticResource FgMuted}"
+                   HorizontalAlignment="Center" VerticalAlignment="Center" IsHitTestVisible="False" Visibility="Collapsed" />
+
+        <TextBlock x:Name="Rodape" Grid.Row="2" Margin="0,8,0,0" FontSize="12" Foreground="{StaticResource FgMuted}" />
+    </Grid>
+</Window>
