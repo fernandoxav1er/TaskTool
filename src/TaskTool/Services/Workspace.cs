@@ -143,7 +143,7 @@ public class Workspace(string raiz)
     }
 
     /// <summary>Reescreve o notas.md da tarefa (se a pasta existir ou <paramref name="criar"/>).</summary>
-    public void EscreverNotas(Tarefa t, IReadOnlyList<Anotacao> notas, bool criar = true)
+    public void EscreverNotas(Tarefa t, IReadOnlyList<Anotacao> notas, IReadOnlyList<ItemTarefa>? itens = null, bool criar = true)
     {
         var pasta = criar ? Garantir(t) : Encontrar(t);
         if (pasta is null) return;
@@ -168,8 +168,22 @@ public class Workspace(string raiz)
             sb.AppendLine(t.Descricao.Trim());
         }
 
+        if (itens is { Count: > 0 })
+        {
+            sb.AppendLine();
+            sb.AppendLine($"## Itens ({itens.Count(i => i.Feito)}/{itens.Count} feitos)");
+            foreach (var i in itens)
+            {
+                sb.AppendLine();
+                sb.AppendLine($"### [{(i.Feito ? "x" : " ")}] {i.Titulo} · {i.StatusTexto}");
+                if (string.IsNullOrWhiteSpace(i.Detalhes)) continue;
+                sb.AppendLine();
+                sb.AppendLine(i.Detalhes.Replace("\r", "").Trim());
+            }
+        }
+
         sb.AppendLine();
-        sb.AppendLine("## Anotações");
+        sb.AppendLine("## Atualizações");
         sb.AppendLine();
         if (notas.Count == 0) sb.AppendLine("_Nenhuma._");
         foreach (var a in notas)

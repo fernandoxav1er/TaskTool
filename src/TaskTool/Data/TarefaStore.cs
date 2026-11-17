@@ -64,7 +64,7 @@ public class TarefaStore : Observable
             {
                 try
                 {
-                    if (ws.Encontrar(t) is null) ws.EscreverNotas(t, db.Anotacoes(t.Id));
+                    if (ws.Encontrar(t) is null) ws.EscreverNotas(t, db.Anotacoes(t.Id), db.Itens(t.Id));
                 }
                 catch (Exception ex) { Log.Aviso($"Não foi possível criar a pasta da tarefa {t.Id} ({t.Titulo})", ex); }
             }
@@ -91,7 +91,7 @@ public class TarefaStore : Observable
         if (Workspace is null || !_porId.ContainsKey(t.Id)) return;
         try
         {
-            Workspace.EscreverNotas(t, _db.Anotacoes(t.Id));
+            Workspace.EscreverNotas(t, _db.Anotacoes(t.Id), _db.Itens(t.Id));
             t.QtdAnexos = Workspace.ContarAnexos(t);
         }
         catch (Exception ex) { Log.Aviso($"Não foi possível atualizar a pasta da tarefa {t.Id} ({t.Titulo})", ex); }
@@ -299,9 +299,71 @@ public class TarefaStore : Observable
         PautaPendentes = (int)_db.ContarPauta();
     }
 
+    // ---------- Itens ----------
+
+    private static readonly HashSet<string> CamposItem =
+        [nameof(ItemTarefa.Titulo), nameof(ItemTarefa.Detalhes), nameof(ItemTarefa.Status)];
+
+    private readonly HashSet<ItemTarefa> _itensPendentes = [];
+
+    /// <summary>Itens da tarefa, na ordem. Alterações nos campos são salvas automaticamente.</summary>
+    public List<ItemTarefa> Itens(Tarefa t)
+    {
+        var lista = _db.Itens(t.Id);
+        foreach (var i in lista) i.PropertyChanged += OnItemChanged;
+        return lista;
+    }
+
+    public ItemTarefa AdicionarItem(Tarefa t, string titulo, int ordem)
+    {
+        var i = new ItemTarefa { TarefaId = t.Id, Titulo = titulo.Trim(), Ordem = ordem, CriadoEm = DateTime.Now };
+        _db.InserirItem(i);
+        i.PropertyChanged += OnItemChanged;
+        AtualizarResumoItens(t.Id);
+        return i;
+    }
+
+    public void ExcluirItem(ItemTarefa i)
+    {
+        i.PropertyChanged -= OnItemChanged;
+        _itensPendentes.Remove(i);
+        _db.ExcluirItem(i.Id);
+        AtualizarResumoItens(i.TarefaId);
+    }
+
+    /// <summary>Grava a ordem da lista (índice = ordem).</summary>
+    public void SalvarOrdemItens(IList<ItemTarefa> itens)
+    {
+        for (var n = 0; n < itens.Count; n++) itens[n].Ordem = n;
+        _db.SalvarOrdemItens(itens);
+        if (itens.Count > 0) AtualizarResumoItens(itens[0].TarefaId);
+    }
+
+    private void OnItemChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (sender is not ItemTarefa i || e.PropertyName is null || !CamposItem.Contains(e.PropertyName)) return;
+        _itensPendentes.Add(i);
+        _timer.Stop();
+        _timer.Start();
+    }
+
+    private void AtualizarResumoItens(long tarefaId)
+    {
+        if (!_porId.TryGetValue(tarefaId, out var t)) return;
+        (t.QtdItens, t.ItensFeitos) = _db.ContarItens(tarefaId);
+        SincronizarPasta(t);
+    }
+
     public void Flush()
     {
         _timer.Stop();
+        if (_itensPendentes.Count > 0)
+        {
+            var itens = _itensPendentes.ToList();
+            _itensPendentes.Clear();
+            foreach (var i in itens) _db.AtualizarItem(i);
+            foreach (var id in itens.Select(i => i.TarefaId).Distinct()) AtualizarResumoItens(id);
+        }
         if (_pendentes.Count == 0) return;
         var salvas = _pendentes.ToList();
         _pendentes.Clear();

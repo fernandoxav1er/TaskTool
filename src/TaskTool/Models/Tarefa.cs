@@ -82,6 +82,17 @@ public class Tarefa : Observable
     /// <summary>Arquivos na pasta da tarefa (sem o notas.md). Vem do workspace, não do banco.</summary>
     public int QtdAnexos { get => _qtdAnexos; set => Set(ref _qtdAnexos, value); }
 
+    private int _qtdItens;
+    private int _itensFeitos;
+
+    /// <summary>Quantidade de itens da tarefa (aba Itens). Vem da tabela ItemTarefa.</summary>
+    public int QtdItens { get => _qtdItens; set { if (Set(ref _qtdItens, value)) Raise(nameof(ItensTexto)); } }
+
+    public int ItensFeitos { get => _itensFeitos; set { if (Set(ref _itensFeitos, value)) Raise(nameof(ItensTexto)); } }
+
+    /// <summary>"3/12" para o card (vazio sem itens).</summary>
+    public string ItensTexto => QtdItens == 0 ? "" : $"{ItensFeitos}/{QtdItens}";
+
     /// <summary>Somente visual: item sendo arrastado no painel.</summary>
     public bool IsDragging { get => _isDragging; set => Set(ref _isDragging, value); }
 
@@ -209,3 +220,62 @@ public class Anotacao : Observable
     public string Quando => CriadaEm.ToString("dd/MM HH:mm");
 }
 
+
+public enum StatusItem
+{
+    // Gravado no banco: não reaproveitar números.
+    Pendente = 0,
+    EmAndamento = 1,
+    Aguardando = 2,
+    Feito = 3,
+}
+
+/// <summary>
+/// Item de uma tarefa (ex.: cada URL de um levantamento de vulnerabilidades): título, situação e
+/// detalhes livres. Os campos editáveis são salvos automaticamente pelo <c>TarefaStore</c>.
+/// </summary>
+public class ItemTarefa : Observable
+{
+    private string _titulo = "";
+    private string? _detalhes;
+    private StatusItem _status;
+    private bool _expandido;
+
+    public long Id { get; set; }
+    public long TarefaId { get; set; }
+    public int Ordem { get; set; }
+    public DateTime CriadoEm { get; set; }
+
+    public string Titulo { get => _titulo; set => Set(ref _titulo, value); }
+
+    public string? Detalhes
+    {
+        get => _detalhes;
+        set { if (Set(ref _detalhes, value)) Raise(nameof(Resumo)); }
+    }
+
+    public StatusItem Status
+    {
+        get => _status;
+        set { if (Set(ref _status, value)) { Raise(nameof(StatusTexto)); Raise(nameof(Feito)); } }
+    }
+
+    public bool Feito => Status == StatusItem.Feito;
+
+    /// <summary>Somente visual: card aberto para editar os detalhes.</summary>
+    public bool Expandido { get => _expandido; set => Set(ref _expandido, value); }
+
+    /// <summary>Primeira linha dos detalhes (aparece no card fechado).</summary>
+    public string? Resumo => Anotacao.PrimeiraLinha(_detalhes);
+
+    public string StatusTexto => TextoDe(Status);
+
+    public static string TextoDe(StatusItem s) => s switch
+    {
+        StatusItem.Pendente => "Pendente",
+        StatusItem.EmAndamento => "Em andamento",
+        StatusItem.Aguardando => "Aguardando",
+        StatusItem.Feito => "Feito",
+        _ => "",
+    };
+}

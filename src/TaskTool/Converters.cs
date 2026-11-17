@@ -23,9 +23,21 @@ public class StatusBrushConverter : IValueConverter
         _ => AFazer,
     };
 
+    /// <summary>Cores dos itens: Pendente cinza, Em andamento azul, Aguardando amarelo, Feito verde.</summary>
+    public static readonly SolidColorBrush Aguardando = Frozen(0xFF, 0xC8, 0x3D);
+
+    public static SolidColorBrush De(StatusItem s) => s switch
+    {
+        StatusItem.EmAndamento => EmAndamento,
+        StatusItem.Aguardando => Aguardando,
+        StatusItem.Feito => Concluida,
+        _ => AFazer,
+    };
+
     public object Convert(object value, Type targetType, object parameter, CultureInfo culture) => value switch
     {
         StatusTarefa s => De(s),
+        StatusItem s => De(s),
         _ => AFazer,
     };
 

@@ -78,8 +78,18 @@ public class Db
                 Texto    TEXT    NOT NULL,
                 CriadaEm TEXT    NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS ItemTarefa (
+                Id       INTEGER PRIMARY KEY AUTOINCREMENT,
+                TarefaId INTEGER NOT NULL REFERENCES Tarefa(Id) ON DELETE CASCADE,
+                Titulo   TEXT    NOT NULL,
+                Detalhes TEXT,
+                Status   INTEGER NOT NULL DEFAULT 0,
+                Ordem    INTEGER NOT NULL DEFAULT 0,
+                CriadoEm TEXT    NOT NULL
+            );
             CREATE INDEX IF NOT EXISTS IX_Tarefa_Status ON Tarefa(Status, Ordem);
             CREATE INDEX IF NOT EXISTS IX_Anotacao_Tarefa ON Anotacao(TarefaId);
+            CREATE INDEX IF NOT EXISTS IX_ItemTarefa_Tarefa ON ItemTarefa(TarefaId, Ordem);
             """);
 
         // Migrações de colunas novas (bancos criados por versões anteriores).
@@ -103,7 +113,9 @@ public class Db
     private const string SelectTarefa = """
         SELECT t.*,
                (SELECT a.Texto FROM Anotacao a WHERE a.TarefaId = t.Id ORDER BY a.CriadaEm DESC, a.Id DESC LIMIT 1) AS UltimaNota,
-               (SELECT COUNT(*) FROM Anotacao a WHERE a.TarefaId = t.Id AND a.Pauta = 1) AS PautaQtd
+               (SELECT COUNT(*) FROM Anotacao a WHERE a.TarefaId = t.Id AND a.Pauta = 1) AS PautaQtd,
+               (SELECT COUNT(*) FROM ItemTarefa i WHERE i.TarefaId = t.Id) AS QtdItens,
+               (SELECT COUNT(*) FROM ItemTarefa i WHERE i.TarefaId = t.Id AND i.Status = 3) AS ItensFeitos
         FROM Tarefa t
         """;
 
@@ -162,7 +174,9 @@ public class Db
             var p = $"$p{i}";
             condicoes.Add($"""
                 (norm(t.Titulo) LIKE {p} ESCAPE '\' OR norm(t.Descricao) LIKE {p} ESCAPE '\'
-                 OR EXISTS (SELECT 1 FROM Anotacao a WHERE a.TarefaId = t.Id AND norm(a.Texto) LIKE {p} ESCAPE '\'))
+                 OR EXISTS (SELECT 1 FROM Anotacao a WHERE a.TarefaId = t.Id AND norm(a.Texto) LIKE {p} ESCAPE '\')
+                 OR EXISTS (SELECT 1 FROM ItemTarefa i WHERE i.TarefaId = t.Id
+                            AND (norm(i.Titulo) LIKE {p} ESCAPE '\' OR norm(i.Detalhes) LIKE {p} ESCAPE '\')))
                 """);
             var escapado = palavras[i].Replace(@"\", @"\\").Replace("%", @"\%").Replace("_", @"\_");
             ps.Add((p, $"%{escapado}%"));
@@ -285,6 +299,101 @@ public class Db
         Exec(c, "DELETE FROM Anotacao WHERE Id=$id", ("$id", id));
     }
 
+    // ---------- Itens ----------
+
+    public List<ItemTarefa> Itens(long tarefaId)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            SELECT Id, TarefaId, Titulo, Detalhes, Status, Ordem, CriadoEm
+            FROM ItemTarefa WHERE TarefaId=$id ORDER BY Ordem, Id
+            """;
+        cmd.Parameters.AddWithValue("$id", tarefaId);
+        using var r = cmd.ExecuteReader();
+        var lista = new List<ItemTarefa>();
+        while (r.Read())
+            lista.Add(new ItemTarefa
+            {
+                Id = r.GetInt64(0),
+                TarefaId = r.GetInt64(1),
+                Titulo = r.GetString(2),
+                Detalhes = r.IsDBNull(3) ? null : r.GetString(3),
+                Status = (StatusItem)r.GetInt32(4),
+                Ordem = r.GetInt32(5),
+                CriadoEm = ParseData(r.GetString(6)),
+            });
+        return lista;
+    }
+
+    public void InserirItem(ItemTarefa i)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = """
+            INSERT INTO ItemTarefa (TarefaId, Titulo, Detalhes, Status, Ordem, CriadoEm)
+            VALUES ($t, $titulo, $det, $status, $ordem, $criado);
+            SELECT last_insert_rowid();
+            """;
+        cmd.Parameters.AddWithValue("$t", i.TarefaId);
+        ParamsItem(cmd, i);
+        cmd.Parameters.AddWithValue("$criado", FormatData(i.CriadoEm));
+        i.Id = (long)cmd.ExecuteScalar()!;
+    }
+
+    public void AtualizarItem(ItemTarefa i)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "UPDATE ItemTarefa SET Titulo=$titulo, Detalhes=$det, Status=$status, Ordem=$ordem WHERE Id=$id";
+        ParamsItem(cmd, i);
+        cmd.Parameters.AddWithValue("$id", i.Id);
+        cmd.ExecuteNonQuery();
+    }
+
+    public void SalvarOrdemItens(IEnumerable<ItemTarefa> itens)
+    {
+        using var c = Open();
+        using var tx = c.BeginTransaction();
+        using var cmd = c.CreateCommand();
+        cmd.Transaction = tx;
+        cmd.CommandText = "UPDATE ItemTarefa SET Ordem=$o WHERE Id=$id";
+        var pO = cmd.Parameters.Add("$o", SqliteType.Integer);
+        var pId = cmd.Parameters.Add("$id", SqliteType.Integer);
+        foreach (var i in itens)
+        {
+            pO.Value = i.Ordem;
+            pId.Value = i.Id;
+            cmd.ExecuteNonQuery();
+        }
+        tx.Commit();
+    }
+
+    public void ExcluirItem(long id)
+    {
+        using var c = Open();
+        Exec(c, "DELETE FROM ItemTarefa WHERE Id=$id", ("$id", id));
+    }
+
+    public (int Qtd, int Feitos) ContarItens(long tarefaId)
+    {
+        using var c = Open();
+        using var cmd = c.CreateCommand();
+        cmd.CommandText = "SELECT COUNT(*), COALESCE(SUM(Status = 3), 0) FROM ItemTarefa WHERE TarefaId=$id";
+        cmd.Parameters.AddWithValue("$id", tarefaId);
+        using var r = cmd.ExecuteReader();
+        r.Read();
+        return (r.GetInt32(0), r.GetInt32(1));
+    }
+
+    private static void ParamsItem(SqliteCommand cmd, ItemTarefa i)
+    {
+        cmd.Parameters.AddWithValue("$titulo", i.Titulo);
+        cmd.Parameters.AddWithValue("$det", (object?)i.Detalhes ?? DBNull.Value);
+        cmd.Parameters.AddWithValue("$status", (int)i.Status);
+        cmd.Parameters.AddWithValue("$ordem", i.Ordem);
+    }
+
     // ---------- helpers ----------
 
     private List<Tarefa> QueryTarefas(string sql, params (string, object)[] ps)
@@ -311,6 +420,8 @@ public class Db
                 Foco = r.GetInt32(r.GetOrdinal("Foco")) != 0,
                 UltimaNota = Str(r, "UltimaNota"),
                 PautaQtd = r.GetInt32(r.GetOrdinal("PautaQtd")),
+                QtdItens = r.GetInt32(r.GetOrdinal("QtdItens")),
+                ItensFeitos = r.GetInt32(r.GetOrdinal("ItensFeitos")),
             });
         }
         return lista;

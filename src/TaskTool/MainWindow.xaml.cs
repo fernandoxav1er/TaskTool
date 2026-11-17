@@ -21,6 +21,8 @@ public partial class MainWindow : Window
     private readonly ObservableCollection<Tarefa> _pauta = [];
     private readonly ObservableCollection<Tarefa> _resultados = [];
     private readonly ObservableCollection<Anotacao> _notas = [];
+    private readonly ObservableCollection<ItemTarefa> _itens = [];
+    private readonly System.ComponentModel.ICollectionView _itensView;
     private readonly DispatcherTimer _buscaTimer;
     private bool _fecharDeVez;
 
@@ -29,6 +31,11 @@ public partial class MainWindow : Window
         InitializeComponent();
         _store = store;
         Notas.ItemsSource = _notas;
+        _itensView = System.Windows.Data.CollectionViewSource.GetDefaultView(_itens);
+        _itensView.Filter = o => OcultarFeitos.IsChecked != true || o is ItemTarefa { Feito: false } || o is ItemTarefa { Expandido: true };
+        ItensLista.ItemsSource = _itensView;
+        _itens.CollectionChanged += (_, _) => AtualizarAbasDetalhe();
+        _notas.CollectionChanged += (_, _) => AtualizarAbasDetalhe();
         Lista.ItemsSource = _store.Ativas;
 
         _buscaTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(250) };
@@ -157,6 +164,18 @@ public partial class MainWindow : Window
         {
             e.Handled = true;
         }
+        else if (Keyboard.Modifiers == ModifierKeys.Control && Selecionada is not null &&
+                 e.Key is Key.D1 or Key.D2 or Key.D3 or Key.D4 or Key.NumPad1 or Key.NumPad2 or Key.NumPad3 or Key.NumPad4)
+        {
+            switch (e.Key)
+            {
+                case Key.D1 or Key.NumPad1: MostrarAbaDetalhe(AbaGeral); break;
+                case Key.D2 or Key.NumPad2: MostrarAbaDetalhe(AbaItens, NovoItemBox); break;
+                case Key.D3 or Key.NumPad3: MostrarAbaDetalhe(AbaAtualizacoes, NotaBox); break;
+                default: MostrarAbaDetalhe(AbaAnexos); break;
+            }
+            e.Handled = true;
+        }
     }
 
     // ---------- Lista / abas ----------
@@ -207,15 +226,152 @@ public partial class MainWindow : Window
     {
         _store.Flush();
         _notas.Clear();
+        foreach (var i in _itens) i.PropertyChanged -= Item_PropertyChanged;
+        _itens.Clear();
         NotaBox.Clear();
+        NovoItemBox.Clear();
         if (Selecionada is not { } t)
         {
             CriadaEmTxt.Text = "";
             return;
         }
         foreach (var a in _store.Anotacoes(t)) _notas.Add(a);
+        foreach (var i in _store.Itens(t))
+        {
+            i.PropertyChanged += Item_PropertyChanged;
+            _itens.Add(i);
+        }
         CriadaEmTxt.Text = $"Criada em {t.CriadaEm:dd/MM/yyyy HH:mm}";
         CarregarAnexos();
+        AtualizarAbasDetalhe();
+    }
+
+    // ---------- Abas da tarefa (Geral / Itens / Atualizações / Anexos) ----------
+
+    private void AbaDetalhe_Checked(object sender, RoutedEventArgs e)
+    {
+        if (!IsInitialized) return;
+        PainelGeral.Visibility = AbaGeral.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PainelItens.Visibility = AbaItens.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PainelAtualizacoes.Visibility = AbaAtualizacoes.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        PainelAnexos.Visibility = AbaAnexos.IsChecked == true ? Visibility.Visible : Visibility.Collapsed;
+        DetalheScroll.ScrollToTop();
+        if (AbaAnexos.IsChecked == true) CarregarAnexos();
+    }
+
+    private void MostrarAbaDetalhe(RadioButton aba, Control? foco = null)
+    {
+        aba.IsChecked = true;
+        if (foco is not null) Dispatcher.BeginInvoke(() => foco.Focus(), DispatcherPriority.Input);
+    }
+
+    private void IrParaItens_Click(object sender, RoutedEventArgs e) => MostrarAbaDetalhe(AbaItens);
+    private void IrParaAtualizacoes_Click(object sender, RoutedEventArgs e) => MostrarAbaDetalhe(AbaAtualizacoes);
+    private void IrParaAnexos_Click(object sender, RoutedEventArgs e) => MostrarAbaDetalhe(AbaAnexos);
+
+    /// <summary>Contadores nos títulos das abas e no resumo da aba Geral.</summary>
+    private void AtualizarAbasDetalhe()
+    {
+        var feitos = _itens.Count(i => i.Feito);
+        AbaItens.Content = _itens.Count == 0 ? "Itens" : $"Itens ({feitos}/{_itens.Count})";
+        AbaAtualizacoes.Content = _notas.Count == 0 ? "Atualizações" : $"Atualizações ({_notas.Count})";
+        var anexos = (AnexosLista.ItemsSource as System.Collections.ICollection)?.Count ?? 0;
+        AbaAnexos.Content = anexos == 0 ? "Anexos" : $"Anexos ({anexos})";
+
+        ItensResumo.Text = _itens.Count == 0 ? "Nenhum item" :
+            $"{feitos} de {_itens.Count} feitos" +
+            (_itens.Count(i => i.Status == StatusItem.Aguardando) is var ag and > 0 ? $" · {ag} aguardando" : "");
+        ItensVazio.Visibility = _itens.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        NotasVazio.Visibility = _notas.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        ResumoItens.Content = _itens.Count == 0 ? "Nenhum item" : $"Itens: {feitos}/{_itens.Count} feitos";
+        ResumoNotas.Content = _notas.Count switch { 0 => "Nenhuma atualização", 1 => "1 atualização", var n => $"{n} atualizações" };
+        ResumoAnexos.Content = anexos switch { 0 => "Nenhum anexo", 1 => "1 anexo", var n => $"{n} anexos" };
+    }
+
+    // ---------- Itens ----------
+
+    private void Item_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(ItemTarefa.Status)) return;
+        AtualizarAbasDetalhe();
+        if (OcultarFeitos.IsChecked == true) _itensView.Refresh();
+    }
+
+    private void NovoItemBox_KeyDown(object sender, KeyEventArgs e)
+    {
+        if (e.Key != Key.Enter || Selecionada is not { } t || NovoItemBox.Text.Trim().Length == 0) return;
+        var i = _store.AdicionarItem(t, NovoItemBox.Text, ordem: _itens.Count == 0 ? 0 : _itens.Max(x => x.Ordem) + 1);
+        i.PropertyChanged += Item_PropertyChanged;
+        _itens.Add(i);
+        NovoItemBox.Clear();
+        e.Handled = true;
+    }
+
+    private static ItemTarefa? ItemDe(object sender) => (sender as FrameworkElement)?.DataContext as ItemTarefa;
+
+    /// <summary>Clique no cabeçalho do item abre/fecha o editor (cliques em botões não contam).</summary>
+    private void ItemCabecalho_Click(object sender, MouseButtonEventArgs e)
+    {
+        for (var d = e.OriginalSource as DependencyObject; d is not null && d != sender; d = System.Windows.Media.VisualTreeHelper.GetParent(d))
+            if (d is Button) return;
+        if (ItemDe(sender) is not { } i) return;
+        i.Expandido = !i.Expandido;
+        if (!i.Expandido && OcultarFeitos.IsChecked == true) _itensView.Refresh();
+    }
+
+    private void StatusItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemDe(sender) is not { } item || sender is not FrameworkElement alvo) return;
+        var menu = new ContextMenu
+        {
+            FontFamily = new System.Windows.Media.FontFamily("Segoe UI Variable Text, Segoe UI"),
+            FontSize = 13,
+            PlacementTarget = alvo,
+            Placement = System.Windows.Controls.Primitives.PlacementMode.Bottom,
+        };
+        foreach (var s in Enum.GetValues<StatusItem>())
+        {
+            var mi = new MenuItem
+            {
+                Header = ItemTarefa.TextoDe(s),
+                IsChecked = item.Status == s,
+                Icon = new System.Windows.Shapes.Ellipse { Width = 9, Height = 9, Fill = StatusBrushConverter.De(s) },
+            };
+            mi.Click += (_, _) => item.Status = s;
+            menu.Items.Add(mi);
+        }
+        menu.IsOpen = true;
+    }
+
+    private void SubirItem_Click(object sender, RoutedEventArgs e) => MoverItem(sender, -1);
+    private void DescerItem_Click(object sender, RoutedEventArgs e) => MoverItem(sender, +1);
+
+    private void MoverItem(object sender, int delta)
+    {
+        if (ItemDe(sender) is not { } i) return;
+        var de = _itens.IndexOf(i);
+        var para = de + delta;
+        if (de < 0 || para < 0 || para >= _itens.Count) return;
+        _itens.Move(de, para);
+        _store.SalvarOrdemItens(_itens);
+    }
+
+    private void ExcluirItem_Click(object sender, RoutedEventArgs e)
+    {
+        if (ItemDe(sender) is not { } i) return;
+        if (!string.IsNullOrWhiteSpace(i.Detalhes) &&
+            MessageBox.Show(this, $"Excluir o item \"{i.Titulo}\" e os detalhes dele?", "Excluir item",
+                MessageBoxButton.YesNo, MessageBoxImage.Warning, MessageBoxResult.No) != MessageBoxResult.Yes)
+            return;
+        i.PropertyChanged -= Item_PropertyChanged;
+        _store.ExcluirItem(i);
+        _itens.Remove(i);
+    }
+
+    private void OcultarFeitos_Changed(object sender, RoutedEventArgs e)
+    {
+        if (IsInitialized) _itensView.Refresh();
     }
 
     private void NovaBox_KeyDown(object sender, KeyEventArgs e)
@@ -348,8 +504,9 @@ public partial class MainWindow : Window
         var itens = _store.Anexos(t).Select(AnexoItem.De).ToList();
         AnexosLista.ItemsSource = itens;
         AnexosDica.Visibility = itens.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
-        AnexosTitulo.Text = itens.Count == 0 ? "Anexos" : $"Anexos ({itens.Count})";
+        AnexosTitulo.Text = itens.Count == 0 ? "Arquivos" : $"Arquivos ({itens.Count})";
         t.QtdAnexos = itens.Count;
+        AtualizarAbasDetalhe();
     }
 
     private void Anexar(IEnumerable<string> arquivos, bool copiar)
@@ -378,6 +535,7 @@ public partial class MainWindow : Window
         else
         {
             e.Effects = EfeitoDe(e);
+            if (AbaAnexos.IsChecked != true) MostrarAbaDetalhe(AbaAnexos);
             AnexosArea.BorderBrush = (System.Windows.Media.Brush)FindResource("Accent");
             AnexosArea.Background = (System.Windows.Media.Brush)FindResource("HoverBg");
         }
@@ -413,12 +571,14 @@ public partial class MainWindow : Window
             var arquivos = Clipboard.GetFileDropList().Cast<string>().ToList();
             var recortado = Clipboard.GetData("Preferred DropEffect") is System.IO.MemoryStream ms
                             && ms.Length >= 4 && (new System.IO.BinaryReader(ms).ReadInt32() & (int)DragDropEffects.Move) != 0;
+            MostrarAbaDetalhe(AbaAnexos);
             Anexar(arquivos, copiar: !recortado);
             if (recortado) Clipboard.Clear(); // como no Explorer: depois de mover, recortar não vale mais
             return true;
         }
         if (Clipboard.ContainsImage() && Clipboard.GetImage() is { } img)
         {
+            MostrarAbaDetalhe(AbaAnexos);
             if (_store.AnexarImagem(t, img) is { } erro)
                 MessageBox.Show(this, erro, "Colar print", MessageBoxButton.OK, MessageBoxImage.Warning);
             CarregarAnexos();

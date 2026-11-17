@@ -129,13 +129,19 @@
                    HorizontalAlignment="Center" VerticalAlignment="Center"
                    Visibility="{Binding SelectedItem, ElementName=Lista, Converter={StaticResource BoolVisInv}}" />
 
-        <!-- Soltar arquivos em qualquer ponto dos detalhes anexa à tarefa selecionada -->
-        <ScrollViewer Grid.Column="1" VerticalScrollBarVisibility="Auto" AllowDrop="True"
-                      PreviewDragEnter="Detalhe_DragOver" PreviewDragOver="Detalhe_DragOver"
-                      PreviewDragLeave="Detalhe_DragLeave" PreviewDrop="Detalhe_Drop"
-                      Visibility="{Binding SelectedItem, ElementName=Lista, Converter={StaticResource BoolVis}}">
-            <StackPanel x:Name="Detalhe" Margin="32,22,32,28" DataContext="{Binding SelectedItem, ElementName=Lista}">
+        <!-- Cabeçalho fixo (título, status, ações) + abas Geral / Itens / Atualizações / Anexos.
+             Soltar arquivos em qualquer ponto dos detalhes anexa à tarefa selecionada. -->
+        <Grid Grid.Column="1" x:Name="Detalhe" DataContext="{Binding SelectedItem, ElementName=Lista}" Background="Transparent"
+              AllowDrop="True" PreviewDragEnter="Detalhe_DragOver" PreviewDragOver="Detalhe_DragOver"
+              PreviewDragLeave="Detalhe_DragLeave" PreviewDrop="Detalhe_Drop"
+              Visibility="{Binding SelectedItem, ElementName=Lista, Converter={StaticResource BoolVis}}">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
 
+            <StackPanel Margin="32,22,32,0">
                 <TextBox Text="{Binding Titulo, UpdateSourceTrigger=PropertyChanged}" FontSize="22" FontWeight="SemiBold"
                          TextWrapping="Wrap" Padding="8,6" />
 
@@ -197,184 +203,313 @@
                         </Button>
                     </StackPanel>
                 </Grid>
+            </StackPanel>
 
-                <!-- Prazo e link -->
-                <Grid Margin="0,4,0,0">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="150" />
-                        <ColumnDefinition Width="16" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <StackPanel>
-                        <TextBlock Style="{StaticResource SectionLabel}" Text="Prazo (dd/mm)" />
-                        <TextBox Text="{Binding PrazoTexto, UpdateSourceTrigger=LostFocus}" Padding="8,6" KeyDown="CampoSimples_KeyDown" />
-                    </StackPanel>
-                    <StackPanel Grid.Column="2">
-                        <TextBlock Style="{StaticResource SectionLabel}" Text="Link (chamado, PR, documento…)" />
-                        <TextBox Text="{Binding Link, UpdateSourceTrigger=PropertyChanged}" Padding="8,6" />
-                    </StackPanel>
-                    <Button Grid.Column="3" Style="{StaticResource IconButton}" VerticalAlignment="Bottom" Margin="6,0,0,2"
-                            Content="&#xE8A7;" ToolTip="Abrir link" Click="AbrirLink_Click" />
-                </Grid>
+            <!-- Abas da tarefa (Ctrl+1..4) -->
+            <Border Grid.Row="1" BorderBrush="{StaticResource Stroke}" BorderThickness="0,0,0,1" Margin="32,16,32,0">
+                <StackPanel Orientation="Horizontal" Margin="4,0,0,0">
+                    <RadioButton x:Name="AbaGeral" Content="Geral" Style="{StaticResource TabRadio}" IsChecked="True"
+                                 Checked="AbaDetalhe_Checked" ToolTip="Prazo, link e descrição (Ctrl+1)" />
+                    <RadioButton x:Name="AbaItens" Content="Itens" Style="{StaticResource TabRadio}"
+                                 Checked="AbaDetalhe_Checked" ToolTip="Partes da atividade, cada uma com situação e detalhes (Ctrl+2)" />
+                    <RadioButton x:Name="AbaAtualizacoes" Content="Atualizações" Style="{StaticResource TabRadio}"
+                                 Checked="AbaDetalhe_Checked" ToolTip="Log com data e hora do que aconteceu (Ctrl+3)" />
+                    <RadioButton x:Name="AbaAnexos" Content="Anexos" Style="{StaticResource TabRadio}"
+                                 Checked="AbaDetalhe_Checked" ToolTip="Arquivos da pasta da tarefa (Ctrl+4)" />
+                </StackPanel>
+            </Border>
 
-                <TextBlock Style="{StaticResource SectionLabel}" Text="Descrição" />
-                <TextBox Text="{Binding Descricao, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True"
-                         TextWrapping="Wrap" MinHeight="110" MaxHeight="320" VerticalScrollBarVisibility="Auto"
-                         VerticalContentAlignment="Top" Padding="8,6" />
+            <ScrollViewer x:Name="DetalheScroll" Grid.Row="2" VerticalScrollBarVisibility="Auto">
+                <Grid Margin="32,6,32,28">
 
-                <!-- Anexos (pasta da tarefa no workspace) -->
-                <DockPanel Margin="0,18,0,6">
-                    <StackPanel x:Name="AnexosAcoes" DockPanel.Dock="Right" Orientation="Horizontal">
-                        <Button Style="{StaticResource TextButton}" Padding="10,3" FontSize="12" Click="Anexar_Click"
-                                ToolTip="Escolher arquivos para mover para a pasta da tarefa">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="Anexar…" />
+                    <!-- ===== Geral ===== -->
+                    <StackPanel x:Name="PainelGeral">
+                        <Grid Margin="0,4,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="150" />
+                                <ColumnDefinition Width="16" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock Style="{StaticResource SectionLabel}" Text="Prazo (dd/mm)" />
+                                <TextBox Text="{Binding PrazoTexto, UpdateSourceTrigger=LostFocus}" Padding="8,6" KeyDown="CampoSimples_KeyDown" />
                             </StackPanel>
-                        </Button>
-                        <Button Style="{StaticResource TextButton}" Padding="10,3" FontSize="12" Click="AbrirPasta_Click"
-                                ToolTip="Abrir a pasta da tarefa no Explorer">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE838;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
-                                <TextBlock Text="Abrir pasta" />
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Style="{StaticResource SectionLabel}" Text="Link (chamado, PR, documento…)" />
+                                <TextBox Text="{Binding Link, UpdateSourceTrigger=PropertyChanged}" Padding="8,6" />
                             </StackPanel>
-                        </Button>
-                    </StackPanel>
-                    <TextBlock x:Name="AnexosTitulo" Text="Anexos" Foreground="{StaticResource FgMuted}" FontSize="12" VerticalAlignment="Bottom" />
-                </DockPanel>
+                            <Button Grid.Column="3" Style="{StaticResource IconButton}" VerticalAlignment="Bottom" Margin="6,0,0,2"
+                                    Content="&#xE8A7;" ToolTip="Abrir link" Click="AbrirLink_Click" />
+                        </Grid>
 
-                <Border x:Name="AnexosArea" CornerRadius="6" BorderThickness="1" BorderBrush="{StaticResource Stroke}" Padding="4"
-                        Background="Transparent">
-                    <Grid>
-                        <ItemsControl x:Name="AnexosLista">
+                        <TextBlock Style="{StaticResource SectionLabel}" Text="Descrição" />
+                        <TextBox Text="{Binding Descricao, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True" AcceptsTab="True"
+                                 TextWrapping="Wrap" MinHeight="180" VerticalContentAlignment="Top" Padding="8,6" />
+
+                        <!-- Resumo das outras abas -->
+                        <WrapPanel Margin="0,14,0,0">
+                            <Button x:Name="ResumoItens" Style="{StaticResource TextButton}" Padding="10,4" FontSize="12" Margin="-10,0,6,0"
+                                    Click="IrParaItens_Click" Foreground="{StaticResource FgMuted}" />
+                            <Button x:Name="ResumoNotas" Style="{StaticResource TextButton}" Padding="10,4" FontSize="12" Margin="0,0,6,0"
+                                    Click="IrParaAtualizacoes_Click" Foreground="{StaticResource FgMuted}" />
+                            <Button x:Name="ResumoAnexos" Style="{StaticResource TextButton}" Padding="10,4" FontSize="12"
+                                    Click="IrParaAnexos_Click" Foreground="{StaticResource FgMuted}" />
+                        </WrapPanel>
+
+                        <!-- Rodapé -->
+                        <Grid Margin="0,20,0,0">
+                            <TextBlock x:Name="CriadaEmTxt" Foreground="{StaticResource FgMuted}" FontSize="12" VerticalAlignment="Center" />
+                            <Button Style="{StaticResource TextButton}" HorizontalAlignment="Right" Click="Excluir_Click"
+                                    Foreground="{StaticResource Danger}">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFont}" Margin="0,1,8,0" VerticalAlignment="Center" />
+                                    <TextBlock Text="Excluir tarefa" />
+                                </StackPanel>
+                            </Button>
+                        </Grid>
+                    </StackPanel>
+
+                    <!-- ===== Itens ===== -->
+                    <StackPanel x:Name="PainelItens" Visibility="Collapsed">
+                        <DockPanel Margin="0,14,0,8">
+                            <CheckBox x:Name="OcultarFeitos" DockPanel.Dock="Right" Content="Ocultar feitos" FontSize="12"
+                                      VerticalAlignment="Center" Margin="12,0,0,0" Checked="OcultarFeitos_Changed" Unchecked="OcultarFeitos_Changed" />
+                            <TextBlock x:Name="ItensResumo" Foreground="{StaticResource FgMuted}" FontSize="12" VerticalAlignment="Center" />
+                        </DockPanel>
+                        <Grid>
+                            <TextBox x:Name="NovoItemBox" Padding="8,6" KeyDown="NovoItemBox_KeyDown" />
+                            <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=NovoItemBox}" Margin="10,0,0,0"
+                                       Text="Novo item (ex.: uma URL, um servidor, um entregável)… Enter adiciona" />
+                        </Grid>
+
+                        <ItemsControl x:Name="ItensLista" Margin="0,8,0,0">
                             <ItemsControl.ItemTemplate>
-                                <DataTemplate DataType="{x:Type m:AnexoItem}">
-                                    <Border x:Name="Bd" CornerRadius="4" Padding="8,5" Background="Transparent" Cursor="Hand"
-                                            ToolTip="Mostrar no Explorer" MouseLeftButtonUp="Anexo_Click">
-                                        <DockPanel>
-                                            <TextBlock DockPanel.Dock="Left" Text="{Binding Icone}" FontFamily="{StaticResource IconFont}"
-                                                       FontSize="13" Foreground="{StaticResource FgMuted}" Margin="0,1,10,0" VerticalAlignment="Center" />
-                                            <TextBlock DockPanel.Dock="Right" Text="{Binding Info}" FontSize="11.5" Margin="10,0,0,0"
-                                                       Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" />
-                                            <TextBlock Text="{Binding Nome}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
-                                        </DockPanel>
+                                <DataTemplate DataType="{x:Type m:ItemTarefa}">
+                                    <Border x:Name="Bd" CornerRadius="6" Padding="6,6,8,6" Margin="0,3" Background="#0CFFFFFF"
+                                            BorderThickness="1" BorderBrush="Transparent">
+                                        <Grid>
+                                            <Grid.RowDefinitions>
+                                                <RowDefinition Height="Auto" />
+                                                <RowDefinition Height="Auto" />
+                                            </Grid.RowDefinitions>
+                                            <Grid x:Name="Cab" Background="Transparent" Cursor="Hand" MouseLeftButtonUp="ItemCabecalho_Click">
+                                                <Grid.ColumnDefinitions>
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="*" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                </Grid.ColumnDefinitions>
+                                                <Button Style="{StaticResource TextButton}" Padding="8,3" FontSize="12" VerticalAlignment="Top"
+                                                        Width="122" HorizontalContentAlignment="Left" Click="StatusItem_Click"
+                                                        ToolTip="Mudar a situação do item">
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <Ellipse Width="8" Height="8" Margin="0,0,7,0" VerticalAlignment="Center"
+                                                                 Fill="{Binding Status, Converter={StaticResource StatusBrush}}" />
+                                                        <TextBlock Text="{Binding StatusTexto}" />
+                                                    </StackPanel>
+                                                </Button>
+                                                <StackPanel Grid.Column="1" Margin="8,3,0,0" VerticalAlignment="Top">
+                                                    <TextBlock x:Name="Tit" Text="{Binding Titulo}" FontSize="14" FontWeight="SemiBold"
+                                                               TextTrimming="CharacterEllipsis" ToolTip="{Binding Titulo}" />
+                                                    <TextBlock x:Name="Res" Text="{Binding Resumo}" FontSize="12" Margin="0,2,0,0"
+                                                               Foreground="{StaticResource FgMuted}" TextTrimming="CharacterEllipsis"
+                                                               Visibility="{Binding Resumo, Converter={StaticResource BoolVis}}" />
+                                                </StackPanel>
+                                                <StackPanel x:Name="Acoes" Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top"
+                                                            Margin="6,-2,-4,0" Opacity="0">
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE74A;" FontSize="10" Padding="6"
+                                                            ToolTip="Subir" Click="SubirItem_Click" />
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE74B;" FontSize="10" Padding="6"
+                                                            ToolTip="Descer" Click="DescerItem_Click" />
+                                                    <Button Style="{StaticResource IconButton}" Content="&#xE74D;" FontSize="11" Padding="6"
+                                                            ToolTip="Excluir item" Click="ExcluirItem_Click" />
+                                                </StackPanel>
+                                            </Grid>
+
+                                            <!-- Aberto: editar título e detalhes -->
+                                            <StackPanel x:Name="Editor" Grid.Row="1" Margin="8,8,0,2" Visibility="Collapsed">
+                                                <TextBox Text="{Binding Titulo, UpdateSourceTrigger=PropertyChanged}" Padding="8,5"
+                                                         FontWeight="SemiBold" />
+                                                <Grid Margin="0,6,0,0">
+                                                    <TextBox x:Name="Det" Text="{Binding Detalhes, UpdateSourceTrigger=PropertyChanged}"
+                                                             AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap" MinHeight="90"
+                                                             VerticalContentAlignment="Top" Padding="8,6" />
+                                                    <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=Det}"
+                                                               VerticalAlignment="Top" Margin="10,7,0,0"
+                                                               Text="Detalhes: IPs, servidores, pastas, o que falta, com quem está…" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Grid>
                                     </Border>
                                     <DataTemplate.Triggers>
                                         <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBg}" />
+                                            <Setter TargetName="Acoes" Property="Opacity" Value="1" />
                                         </Trigger>
+                                        <DataTrigger Binding="{Binding Expandido}" Value="True">
+                                            <Setter TargetName="Editor" Property="Visibility" Value="Visible" />
+                                            <Setter TargetName="Res" Property="Visibility" Value="Collapsed" />
+                                            <Setter TargetName="Bd" Property="BorderBrush" Value="{StaticResource Stroke}" />
+                                            <Setter TargetName="Acoes" Property="Opacity" Value="1" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Feito}" Value="True">
+                                            <Setter TargetName="Tit" Property="Foreground" Value="{StaticResource FgMuted}" />
+                                            <Setter TargetName="Tit" Property="TextDecorations" Value="Strikethrough" />
+                                            <Setter TargetName="Tit" Property="FontWeight" Value="Normal" />
+                                        </DataTrigger>
                                     </DataTemplate.Triggers>
                                 </DataTemplate>
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
-                        <TextBlock x:Name="AnexosDica" Margin="8,8" FontSize="12" Foreground="{StaticResource FgMuted}" TextWrapping="Wrap"
-                                   Text="Arraste arquivos para cá (eles são movidos; segure Ctrl para copiar) ou cole um print com Ctrl+V." />
-                    </Grid>
-                </Border>
+                        <TextBlock x:Name="ItensVazio" Margin="2,12,0,0" FontSize="12" Foreground="{StaticResource FgMuted}" TextWrapping="Wrap"
+                                   Text="Quebre a atividade em partes: cada item tem uma situação (Pendente, Em andamento, Aguardando, Feito) e um campo de detalhes. Clique no item para abrir." />
+                    </StackPanel>
 
-                <!-- Sem workspace -->
-                <Border x:Name="SemWorkspace" CornerRadius="6" BorderThickness="1" BorderBrush="{StaticResource Stroke}" Padding="12,10"
-                        Visibility="Collapsed">
-                    <DockPanel>
-                        <Button DockPanel.Dock="Right" Style="{StaticResource TextButton}" Content="Escolher pasta…" FontSize="12"
-                                Padding="10,4" Click="EscolherWorkspace_Click" />
-                        <TextBlock Text="Escolha uma pasta de workspace para guardar os anexos: cada tarefa ganha uma subpasta."
-                                   TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" />
-                    </DockPanel>
-                </Border>
+                    <!-- ===== Atualizações (log) ===== -->
+                    <StackPanel x:Name="PainelAtualizacoes" Visibility="Collapsed">
+                        <Grid Margin="0,14,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <!-- Várias linhas: colar listas/trechos grandes; cresce até ~12 linhas e depois rola -->
+                            <TextBox x:Name="NotaBox" Padding="8,6" PreviewKeyDown="NotaBox_KeyDown"
+                                     AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
+                                     VerticalContentAlignment="Top" MaxHeight="240" VerticalScrollBarVisibility="Auto" />
+                            <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=NotaBox}" Margin="10,7,0,0"
+                                       VerticalAlignment="Top"
+                                       Text="O que aconteceu? (Enter registra · Shift+Enter nova linha · Ctrl+Enter para reunião)" />
+                            <Button Grid.Column="1" Style="{StaticResource TextButton}" Content="Registrar" Margin="6,0,0,0"
+                                    VerticalAlignment="Top" Click="AdicionarNota_Click" />
+                        </Grid>
 
-                <!-- Anotações (log) -->
-                <TextBlock Style="{StaticResource SectionLabel}" Text="Anotações" />
-                <Grid>
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
-                    <!-- Várias linhas: colar listas/trechos grandes; cresce até ~12 linhas e depois rola -->
-                    <TextBox x:Name="NotaBox" Padding="8,6" PreviewKeyDown="NotaBox_KeyDown"
-                             AcceptsReturn="True" AcceptsTab="True" TextWrapping="Wrap"
-                             VerticalContentAlignment="Top" MaxHeight="240" VerticalScrollBarVisibility="Auto" />
-                    <TextBlock Style="{StaticResource Placeholder}" Tag="{Binding ElementName=NotaBox}" Margin="10,7,0,0"
-                               VerticalAlignment="Top"
-                               Text="O que aconteceu? (Enter registra · Shift+Enter nova linha · Ctrl+Enter para reunião)" />
-                    <Button Grid.Column="1" Style="{StaticResource TextButton}" Content="Registrar" Margin="6,0,0,0"
-                            VerticalAlignment="Top" Click="AdicionarNota_Click" />
-                </Grid>
+                        <ItemsControl x:Name="Notas" Margin="0,8,0,0">
+                            <ItemsControl.ItemTemplate>
+                                <DataTemplate DataType="{x:Type m:Anotacao}">
+                                    <Border x:Name="Bd" CornerRadius="5" Padding="10,7" Margin="0,2" Background="#0CFFFFFF">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="86" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="Auto" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="{Binding Quando}" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="0,1,0,0" />
+                                            <!-- TextBox só leitura: dá para selecionar e copiar um trecho (IP, pasta…) -->
+                                            <StackPanel Grid.Column="1">
+                                                <TextBox x:Name="Txt" Text="{Binding Texto, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
+                                                         Background="Transparent" BorderThickness="0" Padding="0" Margin="0" MinHeight="0"
+                                                         Foreground="{StaticResource Fg}" FontSize="14" MaxHeight="160"
+                                                         TextBlock.LineHeight="20" TextBlock.LineStackingStrategy="BlockLineHeight"
+                                                         VerticalScrollBarVisibility="Disabled" Cursor="IBeam" FocusVisualStyle="{x:Null}"
+                                                         PreviewMouseWheel="NotaTexto_PreviewMouseWheel">
+                                                    <TextBox.Template>
+                                                        <ControlTemplate TargetType="TextBox">
+                                                            <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
+                                                                          HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" />
+                                                        </ControlTemplate>
+                                                    </TextBox.Template>
+                                                </TextBox>
+                                                <Button x:Name="Expandir" Style="{StaticResource TextButton}" Padding="6,3" Margin="-6,4,0,0" FontSize="12"
+                                                        HorizontalAlignment="Left" Foreground="{StaticResource Accent}" Background="Transparent"
+                                                        Content="{Binding TextoBotaoExpandir}" Click="ExpandirNota_Click"
+                                                        Visibility="{Binding Longa, Converter={StaticResource BoolVis}}" />
+                                            </StackPanel>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="6,-4,-4,-4">
+                                                <Button x:Name="PautaBtn" Style="{StaticResource IconButton}" Content="&#xE7C1;"
+                                                        FontSize="11" Padding="6" ToolTip="Levar para reunião (aparece na aba Pauta)"
+                                                        Click="PautaNota_Click" Opacity="0" />
+                                                <Button x:Name="Del" Style="{StaticResource IconButton}" Content="&#xE74D;"
+                                                        FontSize="11" Padding="6" ToolTip="Excluir anotação"
+                                                        Click="ExcluirNota_Click" Opacity="0" />
+                                            </StackPanel>
+                                        </Grid>
+                                    </Border>
+                                    <DataTemplate.Triggers>
+                                        <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
+                                            <Setter TargetName="Del" Property="Opacity" Value="1" />
+                                            <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
+                                        </Trigger>
+                                        <DataTrigger Binding="{Binding Expandida}" Value="True">
+                                            <Setter TargetName="Txt" Property="MaxHeight" Value="Infinity" />
+                                        </DataTrigger>
+                                        <DataTrigger Binding="{Binding Pauta}" Value="True">
+                                            <Setter TargetName="Bd" Property="Background" Value="{StaticResource PautaBg}" />
+                                            <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
+                                            <Setter TargetName="PautaBtn" Property="Foreground" Value="{StaticResource PautaFg}" />
+                                            <Setter TargetName="PautaBtn" Property="ToolTip" Value="Para reunião · clique quando já tiver falado" />
+                                        </DataTrigger>
+                                    </DataTemplate.Triggers>
+                                </DataTemplate>
+                            </ItemsControl.ItemTemplate>
+                        </ItemsControl>
+                        <TextBlock x:Name="NotasVazio" Margin="2,12,0,0" FontSize="12" Foreground="{StaticResource FgMuted}" TextWrapping="Wrap"
+                                   Text="Nenhuma atualização ainda. Registre o que foi feito, respostas recebidas, comandos usados…" />
+                    </StackPanel>
 
-                <ItemsControl x:Name="Notas" Margin="0,8,0,0">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate DataType="{x:Type m:Anotacao}">
-                            <Border x:Name="Bd" CornerRadius="5" Padding="10,7" Margin="0,2" Background="#0CFFFFFF">
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="86" />
-                                        <ColumnDefinition Width="*" />
-                                        <ColumnDefinition Width="Auto" />
-                                    </Grid.ColumnDefinitions>
-                                    <TextBlock Text="{Binding Quando}" Foreground="{StaticResource FgMuted}" FontSize="12" Margin="0,1,0,0" />
-                                    <!-- TextBox só leitura: dá para selecionar e copiar um trecho (IP, pasta…) -->
-                                    <StackPanel Grid.Column="1">
-                                        <TextBox x:Name="Txt" Text="{Binding Texto, Mode=OneWay}" IsReadOnly="True" TextWrapping="Wrap"
-                                                 Background="Transparent" BorderThickness="0" Padding="0" Margin="0" MinHeight="0"
-                                                 Foreground="{StaticResource Fg}" FontSize="14" MaxHeight="160"
-                                                 TextBlock.LineHeight="20" TextBlock.LineStackingStrategy="BlockLineHeight"
-                                                 VerticalScrollBarVisibility="Disabled" Cursor="IBeam" FocusVisualStyle="{x:Null}"
-                                                 PreviewMouseWheel="NotaTexto_PreviewMouseWheel">
-                                            <TextBox.Template>
-                                                <ControlTemplate TargetType="TextBox">
-                                                    <ScrollViewer x:Name="PART_ContentHost" Focusable="False"
-                                                                  HorizontalScrollBarVisibility="Hidden" VerticalScrollBarVisibility="Disabled" />
-                                                </ControlTemplate>
-                                            </TextBox.Template>
-                                        </TextBox>
-                                        <Button x:Name="Expandir" Style="{StaticResource TextButton}" Padding="6,3" Margin="-6,4,0,0" FontSize="12"
-                                                HorizontalAlignment="Left" Foreground="{StaticResource Accent}" Background="Transparent"
-                                                Content="{Binding TextoBotaoExpandir}" Click="ExpandirNota_Click"
-                                                Visibility="{Binding Longa, Converter={StaticResource BoolVis}}" />
+                    <!-- ===== Anexos (pasta da tarefa no workspace) ===== -->
+                    <StackPanel x:Name="PainelAnexos" Visibility="Collapsed">
+                        <DockPanel Margin="0,14,0,6">
+                            <StackPanel x:Name="AnexosAcoes" DockPanel.Dock="Right" Orientation="Horizontal">
+                                <Button Style="{StaticResource TextButton}" Padding="10,3" FontSize="12" Click="Anexar_Click"
+                                        ToolTip="Escolher arquivos para mover para a pasta da tarefa">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="Anexar…" />
                                     </StackPanel>
-                                    <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Top" Margin="6,-4,-4,-4">
-                                        <Button x:Name="PautaBtn" Style="{StaticResource IconButton}" Content="&#xE7C1;"
-                                                FontSize="11" Padding="6" ToolTip="Levar para reunião (aparece na aba Pauta)"
-                                                Click="PautaNota_Click" Opacity="0" />
-                                        <Button x:Name="Del" Style="{StaticResource IconButton}" Content="&#xE74D;"
-                                                FontSize="11" Padding="6" ToolTip="Excluir anotação"
-                                                Click="ExcluirNota_Click" Opacity="0" />
+                                </Button>
+                                <Button Style="{StaticResource TextButton}" Padding="10,3" FontSize="12" Click="AbrirPasta_Click"
+                                        ToolTip="Abrir a pasta da tarefa no Explorer">
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="&#xE838;" FontFamily="{StaticResource IconFont}" Margin="0,1,6,0" VerticalAlignment="Center" />
+                                        <TextBlock Text="Abrir pasta" />
                                     </StackPanel>
-                                </Grid>
-                            </Border>
-                            <DataTemplate.Triggers>
-                                <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="Del" Property="Opacity" Value="1" />
-                                    <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
-                                </Trigger>
-                                <DataTrigger Binding="{Binding Expandida}" Value="True">
-                                    <Setter TargetName="Txt" Property="MaxHeight" Value="Infinity" />
-                                </DataTrigger>
-                                <DataTrigger Binding="{Binding Pauta}" Value="True">
-                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource PautaBg}" />
-                                    <Setter TargetName="PautaBtn" Property="Opacity" Value="1" />
-                                    <Setter TargetName="PautaBtn" Property="Foreground" Value="{StaticResource PautaFg}" />
-                                    <Setter TargetName="PautaBtn" Property="ToolTip" Value="Para reunião · clique quando já tiver falado" />
-                                </DataTrigger>
-                            </DataTemplate.Triggers>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
+                                </Button>
+                            </StackPanel>
+                            <TextBlock x:Name="AnexosTitulo" Text="Arquivos" Foreground="{StaticResource FgMuted}" FontSize="12" VerticalAlignment="Bottom" />
+                        </DockPanel>
 
-                <!-- Rodapé -->
-                <Grid Margin="0,24,0,0">
-                    <TextBlock x:Name="CriadaEmTxt" Foreground="{StaticResource FgMuted}" FontSize="12" VerticalAlignment="Center" />
-                    <Button Style="{StaticResource TextButton}" HorizontalAlignment="Right" Click="Excluir_Click"
-                            Foreground="{StaticResource Danger}">
-                        <StackPanel Orientation="Horizontal">
-                            <TextBlock Text="&#xE74D;" FontFamily="{StaticResource IconFont}" Margin="0,1,8,0" VerticalAlignment="Center" />
-                            <TextBlock Text="Excluir tarefa" />
-                        </StackPanel>
-                    </Button>
+                        <Border x:Name="AnexosArea" CornerRadius="6" BorderThickness="1" BorderBrush="{StaticResource Stroke}" Padding="4"
+                                Background="Transparent">
+                            <Grid>
+                                <ItemsControl x:Name="AnexosLista">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate DataType="{x:Type m:AnexoItem}">
+                                            <Border x:Name="Bd" CornerRadius="4" Padding="8,5" Background="Transparent" Cursor="Hand"
+                                                    ToolTip="Mostrar no Explorer" MouseLeftButtonUp="Anexo_Click">
+                                                <DockPanel>
+                                                    <TextBlock DockPanel.Dock="Left" Text="{Binding Icone}" FontFamily="{StaticResource IconFont}"
+                                                               FontSize="13" Foreground="{StaticResource FgMuted}" Margin="0,1,10,0" VerticalAlignment="Center" />
+                                                    <TextBlock DockPanel.Dock="Right" Text="{Binding Info}" FontSize="11.5" Margin="10,0,0,0"
+                                                               Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" />
+                                                    <TextBlock Text="{Binding Nome}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                                </DockPanel>
+                                            </Border>
+                                            <DataTemplate.Triggers>
+                                                <Trigger SourceName="Bd" Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="Bd" Property="Background" Value="{StaticResource HoverBg}" />
+                                                </Trigger>
+                                            </DataTemplate.Triggers>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock x:Name="AnexosDica" Margin="8,8" FontSize="12" Foreground="{StaticResource FgMuted}" TextWrapping="Wrap"
+                                           Text="Arraste arquivos para cá (eles são movidos; segure Ctrl para copiar) ou cole um print com Ctrl+V." />
+                            </Grid>
+                        </Border>
+
+                        <!-- Sem workspace -->
+                        <Border x:Name="SemWorkspace" CornerRadius="6" BorderThickness="1" BorderBrush="{StaticResource Stroke}" Padding="12,10"
+                                Visibility="Collapsed">
+                            <DockPanel>
+                                <Button DockPanel.Dock="Right" Style="{StaticResource TextButton}" Content="Escolher pasta…" FontSize="12"
+                                        Padding="10,4" Click="EscolherWorkspace_Click" />
+                                <TextBlock Text="Escolha uma pasta de workspace para guardar os anexos: cada tarefa ganha uma subpasta."
+                                           TextWrapping="Wrap" FontSize="12" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" />
+                            </DockPanel>
+                        </Border>
+                    </StackPanel>
                 </Grid>
-            </StackPanel>
-        </ScrollViewer>
+            </ScrollViewer>
+        </Grid>
     </Grid>
 
     <v:LogView x:Name="TelaLogs" Visibility="Collapsed" />
