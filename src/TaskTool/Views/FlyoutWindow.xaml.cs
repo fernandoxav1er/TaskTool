@@ -25,13 +25,14 @@ public partial class FlyoutWindow : Window
         _store = store;
         DataContext = store; // o card de foco faz binding em store.Foco
 
-        // A fila mostra as ativas menos a que está em foco (essa aparece no card do topo).
+        // A lista mostra as tarefas da aba atual menos a que está em foco (essa aparece no card do topo).
         _fila = new ListCollectionView(store.Ativas)
         {
-            Filter = o => o is Tarefa { Foco: false },
+            Filter = o => o is Tarefa { Foco: false } t && NaAbaAtual(t),
             IsLiveFiltering = true,
         };
         _fila.LiveFilteringProperties.Add(nameof(Tarefa.Foco));
+        _fila.LiveFilteringProperties.Add(nameof(Tarefa.Status));
         Lista.ItemsSource = _fila;
 
         FaixaAtualizacao.DataContext = App.Updater;
@@ -39,8 +40,22 @@ public partial class FlyoutWindow : Window
         AtualizarResumo();
     }
 
+    /// <summary>Bloqueadas e a finalizar ficam na aba "Em espera"; o resto é a fila de trabalho.</summary>
+    private static bool EmEspera(Tarefa t) => t.Status is StatusTarefa.Bloqueado or StatusTarefa.AFinalizar;
+
+    private bool NaAbaAtual(Tarefa t) => EmEspera(t) == (AbaEspera.IsChecked == true);
+
+    private void AbaFila_Checked(object sender, RoutedEventArgs e)
+    {
+        if (_fila is null) return; // disparado pelo IsChecked do XAML antes do construtor terminar
+        _fila.Refresh();
+        AtualizarResumo();
+        Rolagem.ScrollToTop();
+    }
+
     public void Mostrar()
     {
+        AbaFila.IsChecked = true; // sempre abre na fila de trabalho
         _store.AtualizarTextosRelativos();
         _store.AtualizarAnexos();
         AtualizarResumo();
@@ -84,7 +99,15 @@ public partial class FlyoutWindow : Window
         if (bloqueadas > 0) partes.Add(bloqueadas == 1 ? "1 bloqueada" : $"{bloqueadas} bloqueadas");
         if (finalizar > 0) partes.Add($"{finalizar} a finalizar");
         Resumo.Text = string.Join(" · ", partes);
-        Vazio.Visibility = n == 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        var naLista = _store.Ativas.Where(t => !t.Foco).ToList();
+        var espera = naLista.Count(EmEspera);
+        AbaFila.Content = $"Fila ({naLista.Count - espera})";
+        AbaEspera.Content = $"Em espera ({espera})";
+
+        var vazia = AbaEspera.IsChecked == true ? espera == 0 : naLista.Count == espera;
+        VazioTexto.Text = AbaEspera.IsChecked == true ? "Nada bloqueado ou a finalizar" : "Nenhuma tarefa na fila";
+        Vazio.Visibility = vazia ? Visibility.Visible : Visibility.Collapsed;
     }
 
     // ---------- Eventos da janela ----------
@@ -112,6 +135,7 @@ public partial class FlyoutWindow : Window
         if (texto.Length == 0) return;
         var nova = _store.Adicionar(texto);
         NovaBox.Clear();
+        AbaFila.IsChecked = true; // tarefa nova entra como "A fazer"
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Loaded, () =>
             (Lista.ItemContainerGenerator.ContainerFromItem(nova) as FrameworkElement)?.BringIntoView());
         e.Handled = true;

@@ -28,6 +28,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -107,8 +108,18 @@
                                Text="Nova tarefa… (Enter para adicionar)" />
                 </Grid>
 
+                <!-- Abas: o que está na fila x o que está parado esperando algo -->
+                <StackPanel Grid.Row="3" Orientation="Horizontal" Margin="20,0,16,4">
+                    <RadioButton x:Name="AbaFila" Style="{StaticResource TabRadio}" FontSize="13" IsChecked="True"
+                                 GroupName="abaFlyout" Checked="AbaFila_Checked"
+                                 ToolTip="A fazer e em andamento: a sua fila de trabalho" />
+                    <RadioButton x:Name="AbaEspera" Style="{StaticResource TabRadio}" FontSize="13"
+                                 GroupName="abaFlyout" Checked="AbaFila_Checked"
+                                 ToolTip="Bloqueadas e a finalizar: ainda são suas, mas não estão andando" />
+                </StackPanel>
+
                 <!-- Fila -->
-                <ScrollViewer x:Name="Rolagem" Grid.Row="3" VerticalScrollBarVisibility="Auto" Padding="8,0,8,8">
+                <ScrollViewer x:Name="Rolagem" Grid.Row="4" VerticalScrollBarVisibility="Auto" Padding="8,0,8,8">
                     <ItemsControl x:Name="Lista" AllowDrop="True" Background="Transparent"
                                   DragOver="Lista_DragOver" Drop="Lista_Drop">
                         <ItemsControl.ItemTemplate>
@@ -206,13 +217,13 @@
                 </ScrollViewer>
 
                 <!-- Vazio -->
-                <StackPanel x:Name="Vazio" Grid.Row="3" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
+                <StackPanel x:Name="Vazio" Grid.Row="4" VerticalAlignment="Center" HorizontalAlignment="Center" IsHitTestVisible="False">
                     <TextBlock Text="&#xE73E;" FontFamily="{StaticResource IconFont}" FontSize="28"
                                HorizontalAlignment="Center" Foreground="{StaticResource FgMuted}" />
-                    <TextBlock Text="Nenhuma tarefa ativa" Margin="0,10,0,0" Foreground="{StaticResource FgMuted}" />
+                    <TextBlock x:Name="VazioTexto" Text="Nenhuma tarefa ativa" Margin="0,10,0,0" Foreground="{StaticResource FgMuted}" />
                 </StackPanel>
 
-                <StackPanel Grid.Row="4">
+                <StackPanel Grid.Row="5">
                     <!-- Faixa de atualização (DataContext = App.Updater, definido no code-behind) -->
                     <Border x:Name="FaixaAtualizacao" Background="#4D3F1A" BorderBrush="{StaticResource Stroke}" BorderThickness="0,1,0,0"
                             Padding="16,6,8,6" Visibility="{Binding MostrarBanner, Converter={StaticResource BoolVis}}">
