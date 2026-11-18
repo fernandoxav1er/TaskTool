@@ -52,9 +52,6 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
 
-                        <Button Style="{StaticResource CompleteButton}" Click="Concluir_Click"
-                                VerticalAlignment="Top" Margin="0,17,12,0" ToolTip="Concluir" />
-
                         <StackPanel Grid.Column="1">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="&#xE840;" FontFamily="{StaticResource IconFont}" FontSize="10"
@@ -78,22 +75,7 @@
                                            Foreground="{StaticResource PautaFg}" VerticalAlignment="Center" Margin="6,1,0,0"
                                            ToolTip="Tem anotação para reunião"
                                            Visibility="{Binding TemPauta, Converter={StaticResource BoolVis}}" />
-                                <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="Itens feitos / total" Visibility="{Binding QtdItens, Converter={StaticResource BoolVis}}"><TextBlock Text="&#xE9D5;" FontFamily="{StaticResource IconFont}" FontSize="10.5" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" Margin="0,1,3,0" /><TextBlock Text="{Binding ItensTexto}" FontSize="11.5" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" /></StackPanel>
-                                <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="Anexos na pasta da tarefa"
-                                            Visibility="{Binding QtdAnexos, Converter={StaticResource BoolVis}}">
-                                    <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
-                                               Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" Margin="0,1,2,0" />
-                                    <TextBlock Text="{Binding QtdAnexos}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
-                                               VerticalAlignment="Center" />
-                                </StackPanel>
                             </StackPanel>
-                            <DockPanel Margin="0,4,0,0" ToolTip="{Binding UltimaNotaDica}"
-                                       Visibility="{Binding UltimaNotaResumo, Converter={StaticResource BoolVis}}">
-                                <TextBlock Text="&#xE70B;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
-                                           Foreground="{StaticResource FgMuted}" Margin="0,2,6,0" VerticalAlignment="Top" />
-                                <TextBlock Text="{Binding UltimaNotaResumo}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
-                                           FontStyle="Italic" TextTrimming="CharacterEllipsis" />
-                            </DockPanel>
                         </StackPanel>
 
                         <Button Grid.Column="2" Style="{StaticResource IconButton}" VerticalAlignment="Top" FontSize="12"
@@ -125,7 +107,7 @@
                         <ItemsControl.ItemTemplate>
                             <DataTemplate DataType="{x:Type m:Tarefa}">
                                 <Grid>
-                                    <Border x:Name="Row" CornerRadius="6" Padding="8,8,6,8" Margin="0,1" Background="Transparent" Cursor="Hand"
+                                    <Border x:Name="Row" CornerRadius="6" Padding="12,8,6,8" Margin="0,1" Background="Transparent" Cursor="Hand"
                                             PreviewMouseLeftButtonDown="Row_MouseDown" PreviewMouseMove="Row_MouseMove"
                                             MouseLeftButtonUp="Row_MouseUp">
                                         <Grid>
@@ -134,9 +116,6 @@
                                                 <ColumnDefinition Width="*" />
                                                 <ColumnDefinition Width="Auto" />
                                             </Grid.ColumnDefinitions>
-
-                                            <Button Style="{StaticResource CompleteButton}" Click="Concluir_Click"
-                                                    VerticalAlignment="Top" Margin="0,1,12,0" ToolTip="Concluir" />
 
                                             <StackPanel Grid.Column="1">
                                                 <!-- Até 3 linhas; passando disso corta com "…" e o tooltip mostra tudo -->
@@ -159,23 +138,7 @@
                                                                Foreground="{StaticResource PautaFg}" VerticalAlignment="Center" Margin="6,1,0,0"
                                                                ToolTip="Tem anotação para reunião"
                                                                Visibility="{Binding TemPauta, Converter={StaticResource BoolVis}}" />
-                                                    <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="Itens feitos / total" Visibility="{Binding QtdItens, Converter={StaticResource BoolVis}}"><TextBlock Text="&#xE9D5;" FontFamily="{StaticResource IconFont}" FontSize="10.5" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" Margin="0,1,3,0" /><TextBlock Text="{Binding ItensTexto}" FontSize="11.5" Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" /></StackPanel>
-                                                    <StackPanel Orientation="Horizontal" Margin="6,0,0,0" ToolTip="Anexos na pasta da tarefa"
-                                                                Visibility="{Binding QtdAnexos, Converter={StaticResource BoolVis}}">
-                                                        <TextBlock Text="&#xE723;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
-                                                                   Foreground="{StaticResource FgMuted}" VerticalAlignment="Center" Margin="0,1,2,0" />
-                                                        <TextBlock Text="{Binding QtdAnexos}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
-                                                                   VerticalAlignment="Center" />
-                                                    </StackPanel>
                                                 </StackPanel>
-                                                <!-- Última anotação -->
-                                                <DockPanel Margin="0,3,0,0" ToolTip="{Binding UltimaNotaDica}"
-                                                           Visibility="{Binding UltimaNotaResumo, Converter={StaticResource BoolVis}}">
-                                                    <TextBlock Text="&#xE70B;" FontFamily="{StaticResource IconFont}" FontSize="10.5"
-                                                               Foreground="{StaticResource FgMuted}" Margin="0,2,6,0" VerticalAlignment="Top" />
-                                                    <TextBlock Text="{Binding UltimaNotaResumo}" FontSize="11.5" Foreground="{StaticResource FgMuted}"
-                                                               FontStyle="Italic" TextTrimming="CharacterEllipsis" />
-                                                </DockPanel>
                                             </StackPanel>
 
                                             <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">

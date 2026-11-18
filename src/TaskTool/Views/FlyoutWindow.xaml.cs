@@ -57,7 +57,6 @@ public partial class FlyoutWindow : Window
     {
         AbaFila.IsChecked = true; // sempre abre na fila de trabalho
         _store.AtualizarTextosRelativos();
-        _store.AtualizarAnexos();
         AtualizarResumo();
         Posicionar();
 
@@ -177,11 +176,6 @@ public partial class FlyoutWindow : Window
     // ---------- Itens ----------
 
     private static Tarefa? TarefaDe(object sender) => (sender as FrameworkElement)?.DataContext as Tarefa;
-
-    private void Concluir_Click(object sender, RoutedEventArgs e)
-    {
-        if (TarefaDe(sender) is { } t) _store.DefinirStatus(t, StatusTarefa.Concluida);
-    }
 
     private ContextMenu? _menuStatus;
 
